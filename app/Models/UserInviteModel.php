@@ -75,6 +75,21 @@ class UserInviteModel extends Model
         $this->update($id, ['accepted_at' => date('Y-m-d H:i:s')]);
     }
 
+    /**
+     * Returns all pending (not accepted, not expired) invites for an institution.
+     */
+    public function pendingForInstitution(int $institutionId): array
+    {
+        return $this->db->table('user_invites ui')
+            ->select('ui.*, u.name AS invited_by_name')
+            ->join('users u', 'u.id = ui.invited_by', 'left')
+            ->where('ui.institution_id', $institutionId)
+            ->where('ui.accepted_at', null)
+            ->where('ui.expires_at >', date('Y-m-d H:i:s'))
+            ->orderBy('ui.created_at', 'DESC')
+            ->get()->getResultArray();
+    }
+
     /** Returns true if the invite is still valid (not expired, not accepted). */
     public function isValid(array $invite): bool
     {

@@ -43,11 +43,14 @@ class UsersController extends BaseController
 
         $items = $query->orderBy('name', 'ASC')->findAll();
 
+        $pendingInvites = $this->invites->pendingForInstitution($institutionId);
+
         return view('admin/users/index', $this->viewData([
-            'pageTitle'  => 'Usuários',
-            'items'      => $items,
-            'rolesList'  => self::ROLES,
-            'search'     => $search,
+            'pageTitle'      => 'Usuários',
+            'items'          => $items,
+            'rolesList'      => self::ROLES,
+            'search'         => $search,
+            'pendingInvites' => $pendingInvites,
         ]));
     }
 
@@ -138,5 +141,31 @@ class UsersController extends BaseController
 
         return redirect()->to(base_url('admin/usuarios'))
             ->with('success', "Convite enviado para {$email}.");
+    }
+
+    public function revokeInvite(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $invite = $this->invites->find($id);
+
+        if (!$invite || $invite['institution_id'] != $institutionId) {
+            return redirect()->to(base_url('admin/usuarios'))->with('error', 'Convite não encontrado.');
+        }
+
+        if (!empty($invite['accepted_at'])) {
+            return redirect()->to(base_url('admin/usuarios'))
+                ->with('error', 'Este convite já foi aceito e não pode ser revogado.');
+        }
+
+        // Expire the invite immediately
+        $this->invites->update($id, ['expires_at' => date('Y-m-d H:i:s')]);
+
+        service('audit')->log('user.invite_revoked', 'user', (int) $this->currentUser()['id'], null, [
+            'email' => $invite['email'],
+        ]);
+
+        return redirect()->to(base_url('admin/usuarios'))
+            ->with('success', "Convite para {$invite['email']} revogado.");
     }
 }

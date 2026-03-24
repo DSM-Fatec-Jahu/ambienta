@@ -2,6 +2,7 @@
 
 namespace App\Controllers;
 
+use App\Models\BookingCommentModel;
 use App\Models\BookingModel;
 use App\Models\BookingRatingModel;
 use App\Models\RoomBlackoutModel;
@@ -12,16 +13,18 @@ use App\Models\WaitlistModel;
 
 class BookingsController extends BaseController
 {
-    private BookingModel       $bookings;
-    private BookingRatingModel $ratings;
-    private RoomBlackoutModel  $blackouts;
-    private RoomModel          $rooms;
-    private EquipmentModel     $equipment;
-    private HolidayModel       $holidays;
-    private WaitlistModel      $waitlist;
+    private BookingCommentModel $comments;
+    private BookingModel        $bookings;
+    private BookingRatingModel  $ratings;
+    private RoomBlackoutModel   $blackouts;
+    private RoomModel           $rooms;
+    private EquipmentModel      $equipment;
+    private HolidayModel        $holidays;
+    private WaitlistModel       $waitlist;
 
     public function __construct()
     {
+        $this->comments  = new BookingCommentModel();
         $this->bookings  = new BookingModel();
         $this->ratings   = new BookingRatingModel();
         $this->blackouts = new RoomBlackoutModel();
@@ -81,11 +84,23 @@ class BookingsController extends BaseController
             }
         }
 
+        $forUsers = [];
+        $user = $this->currentUser();
+        if ($user['role'] !== 'role_requester') {
+            $userModel = new \App\Models\UserModel();
+            $forUsers = $userModel
+                ->where('institution_id', $institutionId)
+                ->where('is_active', 1)
+                ->orderBy('name', 'ASC')
+                ->findAll();
+        }
+
         return view('bookings/create', $this->viewData([
             'pageTitle'   => 'Nova Reserva',
             'rooms'       => $rooms,
             'equipment'   => $equipment,
             'restoreData' => $restoreData,
+            'forUsers'    => $forUsers,
         ]));
     }
 
@@ -176,6 +191,16 @@ class BookingsController extends BaseController
                 ->with('error', 'Ambiente inválido ou inativo.');
         }
 
+        // Maintenance check
+        if (!empty($room['maintenance_mode'])) {
+            $until = $room['maintenance_until'];
+            $msg = 'Este ambiente está em manutenção';
+            if ($until) {
+                $msg .= ' até ' . date('d/m/Y', strtotime($until));
+            }
+            return redirect()->back()->withInput()->with('error', $msg . '.');
+        }
+
         // Validate operating hours
         $dayOfWeek = (int) date('w', strtotime($date));
         $ohRow = db_connect()->table('operating_hours')
@@ -233,9 +258,21 @@ class BookingsController extends BaseController
 
         $requiresApproval = $policy['requires_approval'];
 
+        // Handle booking on behalf of another user
+        $bookedByUserId = null;
+        $bookingUserId  = (int) $user['id'];
+        if ($user['role'] !== 'role_requester') {
+            $forUserId = (int) ($this->request->getPost('for_user_id') ?: 0);
+            if ($forUserId && $forUserId !== (int) $user['id']) {
+                $bookingUserId  = $forUserId;
+                $bookedByUserId = (int) $user['id'];
+            }
+        }
+
         $bookingId = $this->bookings->insert([
             'institution_id'     => $institutionId,
-            'user_id'            => $user['id'],
+            'user_id'            => $bookingUserId,
+            'booked_by_user_id'  => $bookedByUserId,
             'room_id'            => $roomId,
             'title'              => $this->request->getPost('title'),
             'description'        => $this->request->getPost('description') ?: null,
@@ -247,6 +284,7 @@ class BookingsController extends BaseController
             'reviewed_at'        => $requiresApproval ? null : date('Y-m-d H:i:s'),
             'recurrence_type'    => $recurrenceType,
             'recurrence_end_date'=> ($recurrenceType !== 'none') ? $recurrenceEndDate : null,
+            'qr_token'           => bin2hex(random_bytes(32)),
         ]);
 
         // Save equipment requests
@@ -267,6 +305,13 @@ class BookingsController extends BaseController
 
         service('audit')->log('booking.created', 'booking', (int) $bookingId);
 
+        if ($bookedByUserId) {
+            service('audit')->log('booking.created_on_behalf', 'booking', (int) $bookingId, null, [
+                'for_user_id'       => $bookingUserId,
+                'booked_by_user_id' => $bookedByUserId,
+            ]);
+        }
+
         // Generate recurrence children
         if ($recurrenceType !== 'none' && $recurrenceEndDate && $recurrenceEndDate > $date) {
             $step       = ($recurrenceType === 'daily') ? '+1 day' : '+7 days';
@@ -286,7 +331,8 @@ class BookingsController extends BaseController
                 if (!$isHoliday && !$hasConflict) {
                     $this->bookings->insert([
                         'institution_id'      => $institutionId,
-                        'user_id'             => $user['id'],
+                        'user_id'             => $bookingUserId,
+                        'booked_by_user_id'   => $bookedByUserId,
                         'room_id'             => $roomId,
                         'title'               => $title,
                         'description'         => $desc,
@@ -328,11 +374,23 @@ class BookingsController extends BaseController
         $user    = $this->currentUser();
         $booking = $this->bookings->find($id);
 
-        if (!$booking || $booking['user_id'] != $user['id']) {
+        $isStaff = $user['role'] !== 'role_requester';
+        $isOwner = $booking && (int) $booking['user_id'] === (int) $user['id'];
+
+        if (!$booking
+            || (!$isOwner && !$isStaff)
+            || (int) ($booking['institution_id'] ?? 0) !== (int) ($this->institution['id'] ?? 0)
+        ) {
             return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
         }
 
         $room = $this->rooms->find($booking['room_id']);
+
+        $bookedBy = null;
+        if (!empty($booking['booked_by_user_id'])) {
+            $userModel = new \App\Models\UserModel();
+            $bookedBy = $userModel->find((int) $booking['booked_by_user_id']);
+        }
 
         $equipItems = db_connect()->table('booking_equipment be')
             ->select('be.quantity, e.name AS equipment_name, e.code')
@@ -364,17 +422,217 @@ class BookingsController extends BaseController
             $canCheckIn   = ($now >= $windowOpens && $now <= $bookingEnd);
         }
 
+        // QR check-in URL
+        $qrCheckinUrl = !empty($booking['qr_token'])
+            ? base_url('checkin/' . $booking['qr_token'])
+            : null;
+
+        // Recurring series siblings
+        $seriesSiblings = [];
+        if (!empty($booking['recurrence_parent_id'])) {
+            $seriesSiblings = $this->bookings->forSeries((int) $booking['recurrence_parent_id']);
+        } elseif (!empty($booking['recurrence_type']) && $booking['recurrence_type'] !== 'none') {
+            $seriesSiblings = $this->bookings->forSeries((int) $booking['id']);
+        }
+
+        $bookingComments = $this->comments->forBooking($id);
+
         return view('bookings/show', $this->viewData([
             'pageTitle'          => 'Detalhe da Reserva',
             'booking'            => $booking,
             'room'               => $room,
+            'bookedBy'           => $bookedBy,
             'equipItems'         => $equipItems,
             'existingRating'     => $existingRating,
             'canRate'            => $canRate,
             'canCheckIn'         => $canCheckIn,
             'checkinWindowStart' => $checkinWindowStart,
             'checkinSettings'    => $checkinSettings,
+            'qrCheckinUrl'       => $qrCheckinUrl,
+            'seriesSiblings'     => $seriesSiblings,
+            'bookingComments'    => $bookingComments,
+            'isStaff'            => $isStaff,
         ]));
+    }
+
+    // ── Add comment to booking ───────────────────────────────────────
+
+    public function addComment(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $user    = $this->currentUser();
+        $booking = $this->bookings->find($id);
+
+        $isStaff = $user['role'] !== 'role_requester';
+        $isOwner = $booking && (int) $booking['user_id'] === (int) $user['id'];
+
+        if (!$booking
+            || (!$isOwner && !$isStaff)
+            || (int) ($booking['institution_id'] ?? 0) !== (int) ($this->institution['id'] ?? 0)
+        ) {
+            return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
+        }
+
+        $body = trim($this->request->getPost('body') ?? '');
+        if (empty($body)) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'O comentário não pode estar vazio.');
+        }
+        if (mb_strlen($body) > 1000) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Comentário muito longo (máximo 1000 caracteres).');
+        }
+
+        $this->comments->insert([
+            'institution_id' => $booking['institution_id'],
+            'booking_id'     => $id,
+            'user_id'        => $user['id'],
+            'body'           => $body,
+        ]);
+
+        service('audit')->log('booking.comment_added', 'booking', $id, ['commenter' => $user['id']]);
+
+        return redirect()->to(base_url('reservas/' . $id) . '#comentarios')
+            ->with('success', 'Comentário adicionado.');
+    }
+
+    // ── Edit pending booking ─────────────────────────────────────────
+
+    public function edit(int $id): string|\CodeIgniter\HTTP\RedirectResponse
+    {
+        $user    = $this->currentUser();
+        $booking = $this->bookings->find($id);
+
+        if (!$booking || $booking['user_id'] != $user['id']) {
+            return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
+        }
+
+        if ($booking['status'] !== 'pending') {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Apenas reservas pendentes podem ser editadas.');
+        }
+
+        $institutionId = $this->institution['id'] ?? 0;
+        $rooms         = $this->rooms->activeForInstitution($institutionId);
+        $room          = $this->rooms->find($booking['room_id']);
+
+        return view('bookings/edit', $this->viewData([
+            'pageTitle' => 'Editar Reserva',
+            'booking'   => $booking,
+            'rooms'     => $rooms,
+            'room'      => $room,
+        ]));
+    }
+
+    public function update(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $user    = $this->currentUser();
+        $booking = $this->bookings->find($id);
+
+        if (!$booking || $booking['user_id'] != $user['id']) {
+            return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
+        }
+
+        if ($booking['status'] !== 'pending') {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Apenas reservas pendentes podem ser editadas.');
+        }
+
+        $institutionId = $this->institution['id'] ?? 0;
+        $isStaff       = $user['role'] !== 'role_requester';
+
+        // Basic fields validation
+        $rules = [
+            'title'          => 'required|max_length[300]',
+            'attendees_count'=> 'required|integer|greater_than[0]',
+        ];
+
+        if ($isStaff) {
+            $rules['room_id']    = 'required|integer';
+            $rules['date']       = 'required|valid_date[Y-m-d]';
+            $rules['start_time'] = 'required';
+            $rules['end_time']   = 'required';
+        }
+
+        if (!$this->validate($rules)) {
+            return redirect()->back()->withInput()
+                ->with('error', implode(' ', $this->validator->getErrors()));
+        }
+
+        $title          = $this->request->getPost('title');
+        $description    = $this->request->getPost('description') ?: null;
+        $attendeesCount = (int) $this->request->getPost('attendees_count');
+
+        $updateData = [
+            'title'           => $title,
+            'description'     => $description,
+            'attendees_count' => $attendeesCount,
+        ];
+
+        // Staff can also change room / date / time
+        if ($isStaff) {
+            $roomId    = (int) $this->request->getPost('room_id');
+            $date      = $this->request->getPost('date');
+            $startTime = $this->request->getPost('start_time');
+            $endTime   = $this->request->getPost('end_time');
+
+            if ($startTime >= $endTime) {
+                return redirect()->back()->withInput()
+                    ->with('error', 'O horário de término deve ser posterior ao horário de início.');
+            }
+
+            if ($date < date('Y-m-d')) {
+                return redirect()->back()->withInput()
+                    ->with('error', 'Não é possível agendar para datas passadas.');
+            }
+
+            // Conflict check (excluding self)
+            if ($this->bookings->hasConflict($roomId, $date, $startTime, $endTime, $id)) {
+                return redirect()->back()->withInput()
+                    ->with('error', 'Já existe uma reserva para este ambiente no horário selecionado.');
+            }
+
+            // Blackout check
+            $blackoutHit = $this->blackouts->overlaps($roomId, $institutionId, $date . ' ' . $startTime, $date . ' ' . $endTime);
+            if (!empty($blackoutHit)) {
+                return redirect()->back()->withInput()
+                    ->with('error', 'O ambiente está bloqueado neste período: "' . $blackoutHit[0]['title'] . '".');
+            }
+
+            // Room maintenance check
+            $room = $this->rooms->where('institution_id', $institutionId)->find($roomId);
+            if (!$room || !$room['is_active']) {
+                return redirect()->back()->withInput()->with('error', 'Ambiente inválido ou inativo.');
+            }
+            if (!empty($room['maintenance_mode'])) {
+                $msg = 'Este ambiente está em manutenção';
+                if ($room['maintenance_until']) {
+                    $msg .= ' até ' . date('d/m/Y', strtotime($room['maintenance_until']));
+                }
+                return redirect()->back()->withInput()->with('error', $msg . '.');
+            }
+
+            $updateData['room_id']    = $roomId;
+            $updateData['date']       = $date;
+            $updateData['start_time'] = $startTime;
+            $updateData['end_time']   = $endTime;
+        }
+
+        $old = [
+            'title'           => $booking['title'],
+            'description'     => $booking['description'],
+            'attendees_count' => $booking['attendees_count'],
+            'room_id'         => $booking['room_id'],
+            'date'            => $booking['date'],
+            'start_time'      => $booking['start_time'],
+            'end_time'        => $booking['end_time'],
+        ];
+
+        $this->bookings->update($id, $updateData);
+
+        service('audit')->log('booking.updated', 'booking', $id, $old, $updateData);
+
+        return redirect()->to(base_url('reservas/' . $id))
+            ->with('success', 'Reserva atualizada com sucesso.');
     }
 
     // ── Rate booking ─────────────────────────────────────────────────
@@ -740,6 +998,140 @@ class BookingsController extends BaseController
 
         return redirect()->to(base_url('reservas/' . $id))
             ->with('success', 'Check-in realizado com sucesso!');
+    }
+
+    // ── QR Check-in (public — token acts as credential) ──────────────
+
+    /**
+     * GET /checkin/:token — validates QR token and performs check-in.
+     * Public route: no auth required (the 64-char random token is the credential).
+     */
+    public function qrCheckin(string $token): string
+    {
+        $booking = $this->bookings->findByQrToken($token);
+
+        if (!$booking) {
+            return view('bookings/qr_checkin', [
+                'success' => false,
+                'message' => 'QR Code inválido ou reserva não encontrada.',
+            ]);
+        }
+
+        if ($booking['status'] !== 'approved') {
+            return view('bookings/qr_checkin', [
+                'success' => false,
+                'message' => 'Esta reserva não está aprovada (status: ' . $booking['status'] . ').',
+                'booking' => $booking,
+            ]);
+        }
+
+        if (!empty($booking['checkin_at'])) {
+            return view('bookings/qr_checkin', [
+                'success' => false,
+                'message' => 'Check-in já registrado às ' . date('H:i', strtotime($booking['checkin_at'])) . '.',
+                'booking' => $booking,
+            ]);
+        }
+
+        if ($booking['date'] !== date('Y-m-d')) {
+            return view('bookings/qr_checkin', [
+                'success' => false,
+                'message' => 'O check-in via QR só pode ser realizado no dia da reserva (' . date('d/m/Y', strtotime($booking['date'])) . ').',
+                'booking' => $booking,
+            ]);
+        }
+
+        // Load institution settings for check-in window
+        $institution = db_connect()->table('institutions')
+            ->where('id', $booking['institution_id'])
+            ->get()->getRowArray();
+
+        $settings  = json_decode($institution['settings'] ?? '{}', true)['booking'] ?? [];
+        $windowMin = (int) ($settings['checkin_window_min'] ?? 15);
+
+        $bookingStart = strtotime($booking['date'] . ' ' . $booking['start_time']);
+        $bookingEnd   = strtotime($booking['date'] . ' ' . $booking['end_time']);
+        $windowOpens  = $bookingStart - ($windowMin * 60);
+        $now          = time();
+
+        if ($now < $windowOpens) {
+            return view('bookings/qr_checkin', [
+                'success' => false,
+                'message' => 'Check-in via QR disponível a partir das ' . date('H:i', $windowOpens) . '.',
+                'booking' => $booking,
+            ]);
+        }
+
+        if ($now > $bookingEnd) {
+            return view('bookings/qr_checkin', [
+                'success' => false,
+                'message' => 'O horário da reserva já encerrou. Check-in não é mais possível.',
+                'booking' => $booking,
+            ]);
+        }
+
+        $this->bookings->update($booking['id'], ['checkin_at' => date('Y-m-d H:i:s')]);
+        service('audit')->log('booking.checkin', 'booking', (int) $booking['id']);
+
+        $room = $this->rooms->find($booking['room_id']);
+
+        return view('bookings/qr_checkin', [
+            'success' => true,
+            'message' => 'Check-in realizado com sucesso!',
+            'booking' => $booking,
+            'room'    => $room,
+        ]);
+    }
+
+    // ── Cancel recurring series ───────────────────────────────────────
+
+    /**
+     * POST /reservas/:id/cancelar-serie
+     * Cancels all future (pending/approved) occurrences in the series, including this one.
+     */
+    public function cancelSeries(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $user    = $this->currentUser();
+        $booking = $this->bookings->find($id);
+
+        if (!$booking || $booking['user_id'] != $user['id']) {
+            return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
+        }
+
+        if (empty($booking['recurrence_type']) || $booking['recurrence_type'] === 'none') {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Esta reserva não faz parte de uma série recorrente.');
+        }
+
+        // Determine the parent ID of the series
+        $parentId = !empty($booking['recurrence_parent_id'])
+            ? (int) $booking['recurrence_parent_id']
+            : (int) $booking['id'];
+
+        // Get all future siblings (date >= today)
+        $siblings = $this->bookings->forSeries($parentId);
+        $today    = date('Y-m-d');
+        $count    = 0;
+
+        foreach ($siblings as $s) {
+            if ($s['date'] < $today) {
+                continue; // leave past occurrences intact
+            }
+            if (!in_array($s['status'], ['pending', 'approved'])) {
+                continue;
+            }
+
+            $this->bookings->update($s['id'], [
+                'status'           => 'cancelled',
+                'cancelled_at'     => date('Y-m-d H:i:s'),
+                'cancelled_reason' => 'Série cancelada pelo solicitante.',
+            ]);
+            service('audit')->log('booking.cancelled', 'booking', (int) $s['id']);
+            $count++;
+        }
+
+        return redirect()->to(base_url('reservas'))
+            ->with('success', "{$count} ocorrência(s) futuras da série canceladas.");
     }
 
     // ── Booking policy helpers ───────────────────────────────────────

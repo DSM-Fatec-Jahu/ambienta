@@ -29,6 +29,9 @@ $routes->get('auth/google/callback', 'Auth\GoogleController::callback');
 $routes->get( 'convite/(:segment)', 'Auth\LoginController::acceptInvite/$1');
 $routes->post('convite/(:segment)', 'Auth\LoginController::processInvite/$1');
 
+// QR Code Check-in (public — token is the credential)
+$routes->get('checkin/(:segment)', 'BookingsController::qrCheckin/$1');
+
 // ─── Authenticated routes (require login) ────────────────────────────────────
 $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
@@ -52,10 +55,15 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->post('reservas/(:num)/recusar',            'BookingsController::reject/$1',  ['filter' => 'not_requester']);
     $routes->post('reservas/(:num)/ausente',            'BookingsController::markAbsent/$1', ['filter' => 'not_requester']);
 
-    // Rating, iCal & Check-in (must be before :num routes)
+    // Edit pending booking
+    $routes->get( 'reservas/(:num)/editar',             'BookingsController::edit/$1');
+    $routes->post('reservas/(:num)/editar',             'BookingsController::update/$1');
+
+    // Rating, iCal, Check-in & Series (must be before :num routes)
     $routes->get( 'reservas/calendario.ics',            'BookingsController::exportIcal');
     $routes->post('reservas/(:num)/avaliar',            'BookingsController::rate/$1');
     $routes->post('reservas/(:num)/checkin',            'BookingsController::checkIn/$1');
+    $routes->post('reservas/(:num)/cancelar-serie',     'BookingsController::cancelSeries/$1');
 
     // Authenticated agenda
     $routes->get('reservas/agenda', 'BookingsController::agenda');
@@ -70,10 +78,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('predios/(:num)/delete',         'Admin\BuildingsController::delete/$1');
 
         // Rooms / Ambientes
-        $routes->get( 'ambientes',                     'Admin\RoomsController::index');
-        $routes->post('ambientes',                     'Admin\RoomsController::store');
-        $routes->post('ambientes/(:num)/update',       'Admin\RoomsController::update/$1');
-        $routes->post('ambientes/(:num)/delete',       'Admin\RoomsController::delete/$1');
+        $routes->get( 'ambientes',                         'Admin\RoomsController::index');
+        $routes->post('ambientes',                         'Admin\RoomsController::store');
+        $routes->post('ambientes/(:num)/update',           'Admin\RoomsController::update/$1');
+        $routes->post('ambientes/(:num)/delete',           'Admin\RoomsController::delete/$1');
+        $routes->post('ambientes/(:num)/manutencao',       'Admin\RoomsController::setMaintenance/$1');
 
         // Equipment / Equipamentos
         $routes->get( 'equipamentos',                  'Admin\EquipmentController::index');
@@ -82,10 +91,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('equipamentos/(:num)/delete',    'Admin\EquipmentController::delete/$1');
 
         // Users
-        $routes->get( 'usuarios',                      'Admin\UsersController::index');
-        $routes->post('usuarios/convidar',             'Admin\UsersController::invite');
-        $routes->post('usuarios/(:num)/role',          'Admin\UsersController::updateRole/$1');
-        $routes->post('usuarios/(:num)/toggle-active', 'Admin\UsersController::toggleActive/$1');
+        $routes->get( 'usuarios',                                  'Admin\UsersController::index');
+        $routes->post('usuarios/convidar',                         'Admin\UsersController::invite');
+        $routes->post('usuarios/convites/(:num)/revogar',          'Admin\UsersController::revokeInvite/$1');
+        $routes->post('usuarios/(:num)/role',                      'Admin\UsersController::updateRole/$1');
+        $routes->post('usuarios/(:num)/toggle-active',             'Admin\UsersController::toggleActive/$1');
 
         // Holidays
         $routes->get( 'feriados',                      'Admin\HolidaysController::index');
@@ -94,12 +104,17 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('feriados/(:num)/delete',        'Admin\HolidaysController::delete/$1');
 
         // Reports
-        $routes->get('relatorios',             'Admin\ReportsController::index');
-        $routes->get('relatorios/exportar-csv','Admin\ReportsController::exportCsv');
-        $routes->get('relatorios/exportar-pdf','Admin\ReportsController::exportPdf');
+        $routes->get('relatorios',                         'Admin\ReportsController::index');
+        $routes->get('relatorios/exportar-csv',            'Admin\ReportsController::exportCsv');
+        $routes->get('relatorios/exportar-pdf',            'Admin\ReportsController::exportPdf');
+        $routes->get('relatorios/ocupacao',                'Admin\ReportsController::occupancy');
+        $routes->get('relatorios/ocupacao/exportar-csv',   'Admin\ReportsController::exportOccupancyCsv');
+        $routes->get('relatorios/equipamentos',            'Admin\ReportsController::equipment');
+        $routes->get('relatorios/equipamentos/exportar-csv', 'Admin\ReportsController::exportEquipmentCsv');
 
         // Audit
-        $routes->get('auditoria', 'Admin\AuditController::index');
+        $routes->get('auditoria',                    'Admin\AuditController::index');
+        $routes->get('auditoria/exportar-csv',       'Admin\AuditController::exportCsv');
 
         // Settings
         $routes->get( 'configuracoes', 'Admin\SettingsController::index');

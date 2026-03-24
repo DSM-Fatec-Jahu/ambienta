@@ -93,9 +93,29 @@
               <?php else: ?>
                 <span class="badge-cancelled">Inativo</span>
               <?php endif; ?>
+              <?php if ($r['maintenance_mode']): ?>
+                <span class="badge-warning ml-1">
+                  Manutenção<?= $r['maintenance_until'] ? ' até ' . date('d/m', strtotime($r['maintenance_until'])) : '' ?>
+                </span>
+              <?php endif; ?>
             </td>
             <td class="text-right">
               <div class="flex items-center justify-end gap-1">
+                <button
+                  @click="$dispatch('open-maintenance-modal', <?= htmlspecialchars(json_encode([
+                    'id'                 => (int) $r['id'],
+                    'name'               => $r['name'],
+                    'maintenance_mode'   => (bool) $r['maintenance_mode'],
+                    'maintenance_until'  => $r['maintenance_until'] ?? '',
+                    'maintenance_reason' => $r['maintenance_reason'] ?? '',
+                  ]), ENT_QUOTES) ?>)"
+                  class="btn-ghost p-2 text-orange-500 hover:bg-orange-50 hover:text-orange-600" aria-label="Manutenção"
+                  title="Modo manutenção">
+                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z M15 12a3 3 0 11-6 0 3 3 0 016 0z"/>
+                  </svg>
+                </button>
                 <button
                   @click="$dispatch('open-room-modal', <?= htmlspecialchars(json_encode([
                     'mode'                     => 'edit',
@@ -140,7 +160,82 @@
     </div>
   <?php endif; ?>
 
-  <!-- ── Modal ──────────────────────────────────────────────────── -->
+  <!-- ── Maintenance Modal ──────────────────────────────────────── -->
+  <div x-show="maintModalOpen" class="modal-overlay" x-cloak
+       @open-maintenance-modal.window="openMaintModal($event.detail)"
+       x-transition:enter="transition-opacity duration-200"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition-opacity duration-150"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0">
+
+    <div class="modal-panel max-w-lg" @click.stop
+         x-transition:enter="transition duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+
+      <div class="modal-header">
+        <h3 class="text-sm font-semibold text-slate-900">
+          Modo Manutenção — <span x-text="maintForm.name"></span>
+        </h3>
+        <button @click="maintModalOpen = false" class="btn-ghost btn-sm p-1" aria-label="Fechar">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <form :action="`<?= base_url('admin/ambientes/') ?>${maintForm.id}/manutencao`" method="POST">
+        <?= csrf_field() ?>
+
+        <div class="modal-body space-y-4">
+
+          <div class="flex items-center gap-3">
+            <input type="hidden" name="maintenance_mode" :value="maintForm.mode ? '1' : '0'">
+            <input type="checkbox" id="maint_mode" x-model="maintForm.mode"
+                   class="rounded border-slate-300 text-orange-500">
+            <label for="maint_mode" class="text-sm text-slate-700 font-medium">Ativar modo manutenção</label>
+          </div>
+
+          <div x-show="maintForm.mode" x-cloak class="space-y-4">
+            <div>
+              <label for="maint_until" class="form-label">Data de término (opcional)</label>
+              <input type="date" id="maint_until" name="maintenance_until"
+                     x-model="maintForm.until" class="form-input">
+              <p class="form-hint">Deixe em branco se a duração for indefinida.</p>
+            </div>
+            <div>
+              <label for="maint_reason" class="form-label">Motivo (opcional)</label>
+              <textarea id="maint_reason" name="maintenance_reason" rows="2"
+                        x-model="maintForm.reason"
+                        class="form-input resize-none"
+                        placeholder="Ex: Manutenção elétrica, reparo no ar-condicionado..."></textarea>
+            </div>
+          </div>
+
+          <div x-show="!maintForm.mode" x-cloak>
+            <input type="hidden" name="maintenance_until" value="">
+            <input type="hidden" name="maintenance_reason" value="">
+            <p class="text-sm text-slate-500">
+              O ambiente está <span class="font-medium text-emerald-600">disponível para reservas</span>.
+              Ative o modo manutenção para bloquear novas reservas.
+            </p>
+          </div>
+
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" @click="maintModalOpen = false" class="btn-secondary">Cancelar</button>
+          <button type="submit"
+                  :class="maintForm.mode ? 'btn-danger' : 'btn-primary'"
+                  x-text="maintForm.mode ? 'Colocar em manutenção' : 'Retirar de manutenção'"></button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── Room Modal ──────────────────────────────────────────────── -->
   <div x-show="modalOpen" class="modal-overlay" x-cloak
        @open-room-modal.window="openModal($event.detail)"
        x-transition:enter="transition-opacity duration-200"
@@ -256,6 +351,11 @@ function roomsPage() {
       description: '', allows_equipment_lending: false, is_active: true
     },
 
+    maintModalOpen: false,
+    maintForm: {
+      id: null, name: '', mode: false, until: '', reason: ''
+    },
+
     openModal(detail) {
       this.mode = detail.mode;
       if (detail.mode === 'edit') {
@@ -278,6 +378,17 @@ function roomsPage() {
         };
       }
       this.modalOpen = true;
+    },
+
+    openMaintModal(detail) {
+      this.maintForm = {
+        id:     detail.id,
+        name:   detail.name,
+        mode:   detail.maintenance_mode,
+        until:  detail.maintenance_until || '',
+        reason: detail.maintenance_reason || '',
+      };
+      this.maintModalOpen = true;
     }
   }
 }

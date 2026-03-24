@@ -164,4 +164,68 @@
 
 </div>
 
+
+<!-- Pending invites -->
+<?php if (!empty($pendingInvites)): ?>
+<div class="mt-6">
+  <h2 class="text-sm font-semibold text-slate-700 mb-3 flex items-center gap-2">
+    <svg class="w-4 h-4 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/>
+    </svg>
+    Convites pendentes
+    <span class="ml-1 text-2xs bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded-full font-semibold">
+      <?= count($pendingInvites) ?>
+    </span>
+  </h2>
+  <div class="card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="table-base">
+        <thead>
+          <tr>
+            <th>E-mail convidado</th>
+            <th>Perfil</th>
+            <th>Convidado por</th>
+            <th>Expira em</th>
+            <th class="text-right">Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          <?php foreach ($pendingInvites as $inv):
+            $expiresIn = ceil((strtotime($inv['expires_at']) - time()) / 3600);
+          ?>
+          <tr>
+            <td class="font-medium text-slate-800"><?= esc($inv['email']) ?></td>
+            <td>
+              <span class="badge-primary text-xs">
+                <?= esc($rolesList[$inv['role']] ?? $inv['role']) ?>
+              </span>
+            </td>
+            <td class="text-slate-600"><?= esc($inv['invited_by_name'] ?? '—') ?></td>
+            <td class="text-xs text-amber-600">
+              <?php if ($expiresIn > 0): ?>
+                <?= $expiresIn ?>h restante<?= $expiresIn !== 1 ? 's' : '' ?>
+              <?php else: ?>
+                Expirando
+              <?php endif; ?>
+            </td>
+            <td class="text-right">
+              <form method="POST"
+                    action="<?= base_url('admin/usuarios/convites/' . $inv['id'] . '/revogar') ?>"
+                    onsubmit="return confirm('Revogar convite para <?= esc(addslashes($inv['email'])) ?>?')">
+                <?= csrf_field() ?>
+                <button type="submit" class="btn-ghost btn-sm text-red-500 hover:bg-red-50">
+                  Revogar
+                </button>
+              </form>
+            </td>
+          </tr>
+          <?php endforeach; ?>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<?php endif; ?>
+
 <?= $this->endSection() ?>

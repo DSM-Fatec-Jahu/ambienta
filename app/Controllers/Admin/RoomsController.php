@@ -126,4 +126,34 @@ class RoomsController extends BaseController
         return redirect()->to(base_url('admin/ambientes'))
             ->with('success', 'Ambiente excluído.');
     }
+
+    public function setMaintenance(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $room          = $this->rooms->where('institution_id', $institutionId)->find($id);
+
+        if (!$room) {
+            return redirect()->to(base_url('admin/ambientes'))->with('error', 'Ambiente não encontrado.');
+        }
+
+        $mode   = (int) (bool) $this->request->getPost('maintenance_mode');
+        $until  = $this->request->getPost('maintenance_until') ?: null;
+        $reason = $this->request->getPost('maintenance_reason') ?: null;
+
+        $this->rooms->update($id, [
+            'maintenance_mode'   => $mode,
+            'maintenance_until'  => $mode ? $until : null,
+            'maintenance_reason' => $mode ? $reason : null,
+        ]);
+
+        service('audit')->log('room.maintenance_set', 'room', $id, null, [
+            'mode'   => $mode,
+            'until'  => $until,
+            'reason' => $reason,
+        ]);
+
+        $label = $mode ? 'colocado em manutenção' : 'retirado de manutenção';
+        return redirect()->to(base_url('admin/ambientes'))
+            ->with('success', "Ambiente «{$room['name']}» {$label}.");
+    }
 }

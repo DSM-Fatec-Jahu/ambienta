@@ -2,12 +2,32 @@
 
 <?= $this->section('content') ?>
 
+<?php
+$exportQs = http_build_query(array_filter([
+  'action'      => $filters['action'],
+  'entity_type' => $filters['entityType'],
+  'actor_id'    => $filters['actorId'] ?: '',
+  'date_from'   => $filters['dateFrom'],
+  'date_to'     => $filters['dateTo'],
+]));
+$exportUrl = base_url('admin/auditoria/exportar-csv') . ($exportQs ? '?' . $exportQs : '');
+?>
+
 <div class="page-header">
   <div>
     <h1 class="page-title">Auditoria</h1>
     <p class="page-subtitle">Registro imutável de todas as ações no sistema</p>
   </div>
-  <span class="text-xs text-slate-400"><?= number_format($total) ?> registro<?= $total !== 1 ? 's' : '' ?></span>
+  <div class="flex items-center gap-3">
+    <span class="text-xs text-slate-400"><?= number_format($total) ?> registro<?= $total !== 1 ? 's' : '' ?></span>
+    <a href="<?= $exportUrl ?>" class="btn-secondary btn-sm">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+      </svg>
+      Exportar CSV
+    </a>
+  </div>
 </div>
 
 <!-- Filters -->

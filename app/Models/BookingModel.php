@@ -31,6 +31,8 @@ class BookingModel extends Model
         'recurrence_end_date',
         'recurrence_parent_id',
         'checkin_at',
+        'qr_token',
+        'booked_by_user_id',
     ];
 
     protected $useTimestamps = true;
@@ -190,6 +192,35 @@ class BookingModel extends Model
             ->countAllResults();
     }
 
+    /**
+     * Find a booking by its QR token.
+     */
+    public function findByQrToken(string $token): ?array
+    {
+        return $this->where('qr_token', $token)
+                    ->where('deleted_at IS NULL')
+                    ->first();
+    }
+
+    /**
+     * Returns all active bookings in a recurring series, ordered by date.
+     * Pass the parent booking's ID (or any child's recurrence_parent_id).
+     */
+    public function forSeries(int $parentId): array
+    {
+        return $this->db->table('bookings bk')
+            ->select('bk.*, r.name AS room_name, r.code AS room_code')
+            ->join('rooms r', 'r.id = bk.room_id', 'left')
+            ->groupStart()
+                ->where('bk.id', $parentId)
+                ->orWhere('bk.recurrence_parent_id', $parentId)
+            ->groupEnd()
+            ->whereIn('bk.status', ['pending', 'approved'])
+            ->where('bk.deleted_at IS NULL')
+            ->orderBy('bk.date ASC, bk.start_time ASC')
+            ->get()->getResultArray();
+    }
+
     // ── Analytics ────────────────────────────────────────────────────
 
     /**
@@ -249,5 +280,75 @@ class BookingModel extends Model
             ->get()->getResultArray();
 
         return compact('total', 'approved', 'rejected', 'cancelled', 'approvalRate', 'topRooms');
+    }
+
+    /**
+     * Equipment usage stats for a date range.
+     * Returns list of equipment with total requests and total quantity, ordered by most used.
+     */
+    public function equipmentUsage(int $institutionId, string $dateFrom, string $dateTo): array
+    {
+        return $this->db->table('booking_equipment be')
+            ->select('e.id AS equipment_id, e.name AS equipment_name, e.code AS equipment_code,
+                      COUNT(DISTINCT bk.id) AS total_bookings,
+                      SUM(be.quantity) AS total_quantity')
+            ->join('bookings bk', 'bk.id = be.booking_id', 'inner')
+            ->join('equipment e', 'e.id = be.equipment_id', 'left')
+            ->where('bk.institution_id', $institutionId)
+            ->where('bk.deleted_at IS NULL')
+            ->where('bk.date >=', $dateFrom)
+            ->where('bk.date <=', $dateTo)
+            ->whereIn('bk.status', ['approved', 'absent', 'pending'])
+            ->groupBy('be.equipment_id')
+            ->orderBy('total_bookings DESC')
+            ->get()->getResultArray();
+    }
+
+    /**
+     * Occupancy stats per room for a date range.
+     * Returns array of rooms with: room_id, room_name, building_name, total_bookings, total_hours, capacity
+     */
+    public function occupancyByRoom(int $institutionId, string $dateFrom, string $dateTo): array
+    {
+        return $this->db->table('bookings bk')
+            ->select('bk.room_id,
+                      r.name AS room_name, r.code AS room_code, r.capacity,
+                      b.name AS building_name,
+                      COUNT(bk.id) AS total_bookings,
+                      SUM(TIME_TO_SEC(TIMEDIFF(bk.end_time, bk.start_time)) / 3600) AS total_hours')
+            ->join('rooms r', 'r.id = bk.room_id', 'left')
+            ->join('buildings b', 'b.id = r.building_id', 'left')
+            ->where('bk.institution_id', $institutionId)
+            ->where('bk.deleted_at IS NULL')
+            ->where('bk.date >=', $dateFrom)
+            ->where('bk.date <=', $dateTo)
+            ->whereIn('bk.status', ['approved', 'absent'])
+            ->groupBy('bk.room_id')
+            ->orderBy('total_hours DESC')
+            ->get()->getResultArray();
+    }
+
+    /**
+     * Booking activity stats grouped by user for a date range.
+     */
+    public function activityByUser(int $institutionId, string $dateFrom, string $dateTo): array
+    {
+        return $this->db->table('bookings bk')
+            ->select('u.id AS user_id, u.name AS user_name, u.email,
+                      u.role AS user_role,
+                      COUNT(*) AS total,
+                      SUM(bk.status = "pending")   AS total_pending,
+                      SUM(bk.status = "approved")  AS total_approved,
+                      SUM(bk.status = "rejected")  AS total_rejected,
+                      SUM(bk.status = "cancelled") AS total_cancelled,
+                      SUM(bk.status = "absent")    AS total_absent')
+            ->join('users u', 'u.id = bk.user_id', 'left')
+            ->where('bk.institution_id', $institutionId)
+            ->where('bk.deleted_at IS NULL')
+            ->where('bk.date >=', $dateFrom)
+            ->where('bk.date <=', $dateTo)
+            ->groupBy('bk.user_id')
+            ->orderBy('total', 'DESC')
+            ->get()->getResultArray();
     }
 }

@@ -237,4 +237,217 @@ class ReportsController extends BaseController
         $dompdf->stream($filename, ['Attachment' => true]);
         exit;
     }
+
+    /**
+     * Room occupancy report.
+     * GET /admin/relatorios/ocupacao
+     */
+    public function occupancy(): string
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $dateFrom = $this->request->getGet('date_from') ?? date('Y-m-01');
+        $dateTo   = $this->request->getGet('date_to')   ?? date('Y-m-d');
+
+        $bookingModel = new \App\Models\BookingModel();
+        $rows = $bookingModel->occupancyByRoom($institutionId, $dateFrom, $dateTo);
+
+        // Calculate days in range for a rough available-hours reference (operating days × 8h)
+        $days = max(1, (int) ((strtotime($dateTo) - strtotime($dateFrom)) / 86400) + 1);
+
+        return view('admin/reports/occupancy', $this->viewData([
+            'pageTitle' => 'Ocupação por Sala',
+            'dateFrom'  => $dateFrom,
+            'dateTo'    => $dateTo,
+            'rows'      => $rows,
+            'days'      => $days,
+        ]));
+    }
+
+    /**
+     * Equipment usage report.
+     * GET /admin/relatorios/equipamentos
+     */
+    public function equipment(): string
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $dateFrom = $this->request->getGet('date_from') ?? date('Y-m-01');
+        $dateTo   = $this->request->getGet('date_to')   ?? date('Y-m-d');
+
+        $bookingModel = new \App\Models\BookingModel();
+        $rows = $bookingModel->equipmentUsage($institutionId, $dateFrom, $dateTo);
+
+        return view('admin/reports/equipment', $this->viewData([
+            'pageTitle' => 'Uso de Equipamentos',
+            'dateFrom'  => $dateFrom,
+            'dateTo'    => $dateTo,
+            'rows'      => $rows,
+        ]));
+    }
+
+    /**
+     * Export equipment usage report as CSV.
+     * GET /admin/relatorios/equipamentos/exportar-csv
+     */
+    public function exportEquipmentCsv(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $dateFrom = $this->request->getGet('date_from') ?? date('Y-m-01');
+        $dateTo   = $this->request->getGet('date_to')   ?? date('Y-m-d');
+
+        $bookingModel = new \App\Models\BookingModel();
+        $rows = $bookingModel->equipmentUsage($institutionId, $dateFrom, $dateTo);
+
+        $csv = fopen('php://temp', 'r+');
+        fputcsv($csv, ['Equipamento', 'Código', 'Reservas com uso', 'Qtd. total solicitada'], ';');
+
+        foreach ($rows as $r) {
+            fputcsv($csv, [
+                $r['equipment_name'],
+                $r['equipment_code'] ?? '',
+                $r['total_bookings'],
+                $r['total_quantity'],
+            ], ';');
+        }
+
+        rewind($csv);
+        $content = stream_get_contents($csv);
+        fclose($csv);
+
+        return $this->response
+            ->setHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="equipamentos_' . $dateFrom . '_' . $dateTo . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $content);
+    }
+
+    /**
+     * User activity report.
+     * GET /admin/relatorios/usuarios
+     */
+    public function userActivity(): string
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $dateFrom = $this->request->getGet('date_from') ?? date('Y-m-01');
+        $dateTo   = $this->request->getGet('date_to')   ?? date('Y-m-d');
+
+        $bookingModel = new \App\Models\BookingModel();
+        $rows = $bookingModel->activityByUser($institutionId, $dateFrom, $dateTo);
+
+        return view('admin/reports/user_activity', $this->viewData([
+            'pageTitle' => 'Atividade por Usuário',
+            'dateFrom'  => $dateFrom,
+            'dateTo'    => $dateTo,
+            'rows'      => $rows,
+        ]));
+    }
+
+    /**
+     * Export user activity report as CSV.
+     * GET /admin/relatorios/usuarios/exportar-csv
+     */
+    public function exportUserActivityCsv(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $dateFrom = $this->request->getGet('date_from') ?? date('Y-m-01');
+        $dateTo   = $this->request->getGet('date_to')   ?? date('Y-m-d');
+
+        $bookingModel = new \App\Models\BookingModel();
+        $rows = $bookingModel->activityByUser($institutionId, $dateFrom, $dateTo);
+
+        $roleLabels = [
+            'role_admin'         => 'Admin',
+            'role_director'      => 'Diretor',
+            'role_vice_director' => 'Vice-diretor',
+            'role_coordinator'   => 'Coordenador',
+            'role_technician'    => 'Técnico',
+            'role_requester'     => 'Solicitante',
+        ];
+
+        $csv = fopen('php://temp', 'r+');
+        fputcsv($csv, [
+            'Usuário', 'E-mail', 'Perfil',
+            'Total', 'Aprovadas', 'Pendentes', 'Recusadas', 'Canceladas', 'Ausentes',
+            'Taxa aprovação (%)', 'Taxa ausência (%)',
+        ], ';');
+
+        foreach ($rows as $r) {
+            $approved  = (int) $r['total_approved'];
+            $total     = (int) $r['total'];
+            $absent    = (int) $r['total_absent'];
+            $decided   = $approved + (int) $r['total_rejected'];
+            $approvalRate = $decided > 0 ? round(($approved / $decided) * 100, 1) : 0;
+            $absenceRate  = $approved > 0 ? round(($absent / $approved) * 100, 1) : 0;
+
+            fputcsv($csv, [
+                $r['user_name']  ?? '',
+                $r['email']      ?? '',
+                $roleLabels[$r['user_role']] ?? $r['user_role'],
+                $total,
+                $approved,
+                (int) $r['total_pending'],
+                (int) $r['total_rejected'],
+                (int) $r['total_cancelled'],
+                $absent,
+                $approvalRate . '%',
+                $absenceRate  . '%',
+            ], ';');
+        }
+
+        rewind($csv);
+        $content = stream_get_contents($csv);
+        fclose($csv);
+
+        return $this->response
+            ->setHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="usuarios_' . $dateFrom . '_' . $dateTo . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $content);
+    }
+
+    /**
+     * Export occupancy report as CSV.
+     * GET /admin/relatorios/ocupacao/exportar-csv
+     */
+    public function exportOccupancyCsv(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $dateFrom = $this->request->getGet('date_from') ?? date('Y-m-01');
+        $dateTo   = $this->request->getGet('date_to')   ?? date('Y-m-d');
+
+        $bookingModel = new \App\Models\BookingModel();
+        $rows = $bookingModel->occupancyByRoom($institutionId, $dateFrom, $dateTo);
+
+        $days = max(1, (int) ((strtotime($dateTo) - strtotime($dateFrom)) / 86400) + 1);
+        $refHours = $days * 8;
+
+        $csv = fopen('php://temp', 'r+');
+        fputcsv($csv, ['Sala', 'Código', 'Prédio', 'Capacidade', 'Reservas', 'Horas reservadas', 'Ref. horas disponíveis', '% Ocupação'], ';');
+
+        foreach ($rows as $r) {
+            $pct = $refHours > 0 ? round(min(100, ($r['total_hours'] / $refHours) * 100), 1) : 0;
+            fputcsv($csv, [
+                $r['room_name'],
+                $r['room_code'] ?? '',
+                $r['building_name'] ?? '',
+                $r['capacity'],
+                $r['total_bookings'],
+                number_format((float)$r['total_hours'], 1, ',', '.'),
+                $refHours,
+                $pct . '%',
+            ], ';');
+        }
+
+        rewind($csv);
+        $content = stream_get_contents($csv);
+        fclose($csv);
+
+        return $this->response
+            ->setHeader('Content-Type', 'text/csv; charset=UTF-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="ocupacao_' . $dateFrom . '_' . $dateTo . '.csv"')
+            ->setBody("\xEF\xBB\xBF" . $content);
+    }
 }

@@ -22,6 +22,9 @@ class RoomModel extends Model
         'allows_equipment_lending',
         'image_path',
         'is_active',
+        'maintenance_mode',
+        'maintenance_until',
+        'maintenance_reason',
     ];
 
     protected $useTimestamps = true;

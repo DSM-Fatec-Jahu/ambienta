@@ -112,6 +112,62 @@ $statusLabel = match($booking['status']) {
     </div>
     <?php endif; ?>
 
+    <!-- ── Recurring series ──────────────────────────────────── -->
+    <?php if (!empty($seriesSiblings)): ?>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-sm font-semibold text-slate-900">Série recorrente</h2>
+        <span class="text-xs text-slate-400"><?= count($seriesSiblings) ?> ocorrência(s)</span>
+      </div>
+      <div class="overflow-x-auto">
+        <table class="table-base">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Horário</th>
+              <th>Status</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            <?php foreach ($seriesSiblings as $s):
+              $sClass = match($s['status']) {
+                'approved'  => 'badge-approved',
+                'rejected'  => 'badge-rejected',
+                'cancelled' => 'badge-cancelled',
+                'absent'    => 'badge-absent',
+                default     => 'badge-pending',
+              };
+              $sLabel = match($s['status']) {
+                'approved'  => 'Aprovada',
+                'rejected'  => 'Recusada',
+                'cancelled' => 'Cancelada',
+                'absent'    => 'Ausente',
+                default     => 'Pendente',
+              };
+              $isCurrent = ($s['id'] == $booking['id']);
+            ?>
+            <tr class="<?= $isCurrent ? 'bg-primary/5' : '' ?>">
+              <td class="font-medium <?= $isCurrent ? 'text-primary' : '' ?>">
+                <?= date('d/m/Y', strtotime($s['date'])) ?>
+                <?php if ($isCurrent): ?><span class="ml-1 text-2xs text-primary font-semibold">(esta)</span><?php endif; ?>
+              </td>
+              <td><?= substr($s['start_time'], 0, 5) ?>–<?= substr($s['end_time'], 0, 5) ?></td>
+              <td><span class="<?= $sClass ?> text-xs"><?= $sLabel ?></span></td>
+              <td>
+                <?php if (!$isCurrent): ?>
+                <a href="<?= base_url('reservas/' . $s['id']) ?>"
+                   class="text-xs text-primary hover:underline">Ver</a>
+                <?php endif; ?>
+              </td>
+            </tr>
+            <?php endforeach; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <!-- ── Rating section ─────────────────────────────────────── -->
     <?php if ($canRate): ?>
     <div class="card" x-data="ratingWidget()">
@@ -179,6 +235,83 @@ $statusLabel = match($booking['status']) {
     </div>
     <?php endif; ?>
 
+    <!-- ── Comments thread ───────────────────────────────────── -->
+    <div class="card" id="comentarios">
+      <div class="card-header">
+        <h2 class="text-sm font-semibold text-slate-900">Comentários</h2>
+        <span class="text-xs text-slate-400"><?= count($bookingComments) ?> mensagem(ns)</span>
+      </div>
+
+      <?php if (!empty($bookingComments)): ?>
+      <div class="divide-y divide-slate-50">
+        <?php
+        $roleLabels = [
+          'role_admin'         => 'Admin',
+          'role_director'      => 'Diretor',
+          'role_vice_director' => 'Vice-diretor',
+          'role_coordinator'   => 'Coordenador',
+          'role_technician'    => 'Técnico',
+          'role_requester'     => 'Solicitante',
+        ];
+        ?>
+        <?php foreach ($bookingComments as $c):
+          $authorInitial = strtoupper(substr($c['author_name'] ?? 'U', 0, 1));
+          $isMe = ($c['user_id'] == ($currentUser['id'] ?? 0));
+        ?>
+        <div class="px-4 py-3 flex gap-3">
+          <!-- Avatar -->
+          <?php if (!empty($c['avatar_path'])): ?>
+            <img src="<?= base_url('uploads/avatars/' . esc($c['avatar_path'])) ?>"
+                 alt="Avatar" class="h-7 w-7 rounded-full object-cover flex-shrink-0 mt-0.5">
+          <?php else: ?>
+            <div class="h-7 w-7 rounded-full bg-primary/20 flex items-center justify-center
+                        text-xs font-bold text-primary flex-shrink-0 mt-0.5">
+              <?= $authorInitial ?>
+            </div>
+          <?php endif; ?>
+
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2 mb-1">
+              <span class="text-xs font-semibold text-slate-800">
+                <?= esc($c['author_name'] ?? 'Usuário') ?>
+                <?php if ($isMe): ?><span class="text-primary">(você)</span><?php endif; ?>
+              </span>
+              <?php if (isset($roleLabels[$c['author_role']])): ?>
+              <span class="text-2xs text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">
+                <?= $roleLabels[$c['author_role']] ?>
+              </span>
+              <?php endif; ?>
+              <span class="ml-auto text-2xs text-slate-400 flex-shrink-0">
+                <?= date('d/m/Y H:i', strtotime($c['created_at'])) ?>
+              </span>
+            </div>
+            <p class="text-sm text-slate-700 whitespace-pre-line"><?= esc($c['body']) ?></p>
+          </div>
+        </div>
+        <?php endforeach; ?>
+      </div>
+      <?php else: ?>
+      <div class="card-body text-center py-6">
+        <p class="text-xs text-slate-400">Nenhum comentário ainda. Seja o primeiro!</p>
+      </div>
+      <?php endif; ?>
+
+      <!-- Comment form -->
+      <?php if (in_array($booking['status'], ['pending', 'approved', 'rejected', 'cancelled', 'absent'])): ?>
+      <div class="card-body border-t border-slate-100">
+        <form method="POST" action="<?= base_url('reservas/' . $booking['id'] . '/comentario') ?>">
+          <?= csrf_field() ?>
+          <textarea name="body" rows="2" maxlength="1000"
+                    class="form-input resize-none text-sm mb-2"
+                    placeholder="Escreva um comentário ou observação..."></textarea>
+          <div class="flex justify-end">
+            <button type="submit" class="btn-primary btn-sm">Enviar</button>
+          </div>
+        </form>
+      </div>
+      <?php endif; ?>
+    </div>
+
   </div>
 
   <!-- Sidebar: status + actions -->
@@ -195,6 +328,12 @@ $statusLabel = match($booking['status']) {
           <span class="font-medium text-slate-600">Criada em:</span>
           <?= date('d/m/Y H:i', strtotime($booking['created_at'])) ?>
         </div>
+        <?php if (!empty($bookedBy)): ?>
+        <div class="flex justify-between py-2 border-b border-slate-100">
+          <span class="text-sm text-slate-500">Criado por</span>
+          <span class="text-sm font-medium text-slate-800"><?= esc($bookedBy['name']) ?></span>
+        </div>
+        <?php endif; ?>
         <?php if ($booking['reviewed_at']): ?>
         <div>
           <span class="font-medium text-slate-600">Revisada em:</span>
@@ -261,15 +400,61 @@ $statusLabel = match($booking['status']) {
     </div>
     <?php endif; ?>
 
+    <!-- QR Code check-in -->
+    <?php if (!empty($qrCheckinUrl) && in_array($booking['status'], ['pending', 'approved']) && empty($booking['checkin_at'])): ?>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-sm font-semibold text-slate-900">QR Code de Check-in</h2>
+        <span class="text-xs text-slate-400">Apresente ao responsável</span>
+      </div>
+      <div class="card-body flex flex-col items-center gap-3">
+        <div id="qr-container" class="p-2 bg-white rounded-lg border border-slate-200 shadow-sm"></div>
+        <p class="text-xs text-slate-500 text-center">
+          Escaneie para registrar presença no dia da reserva.
+        </p>
+        <a href="<?= esc($qrCheckinUrl) ?>" target="_blank"
+           class="text-xs text-primary hover:underline truncate max-w-full">
+          <?= esc($qrCheckinUrl) ?>
+        </a>
+      </div>
+    </div>
+    <?php endif; ?>
+
     <!-- Actions -->
     <?php if (in_array($booking['status'], ['pending', 'approved'])): ?>
-    <div class="card" x-data="{ showCancel: false }">
-      <div class="card-body">
-        <button @click="showCancel = !showCancel" class="btn-danger w-full">
+    <div class="card" x-data="{ showCancel: false, showCancelSeries: false }">
+      <div class="card-body space-y-2">
+        <?php if ($booking['status'] === 'pending'): ?>
+        <a href="<?= base_url('reservas/' . $booking['id'] . '/editar') ?>" class="btn-secondary w-full text-center">
+          <svg class="w-4 h-4 inline-block mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
+          </svg>
+          Editar Reserva
+        </a>
+        <?php endif; ?>
+        <button @click="showCancel = !showCancel; showCancelSeries = false" class="btn-danger w-full">
           Cancelar Reserva
         </button>
 
-        <div x-show="showCancel" x-cloak class="mt-3" x-transition>
+        <?php
+          $isSeries = !empty($booking['recurrence_type']) && $booking['recurrence_type'] !== 'none';
+          $hasFutureSiblings = false;
+          if ($isSeries && !empty($seriesSiblings)) {
+              foreach ($seriesSiblings as $s) {
+                  if ($s['date'] >= date('Y-m-d') && $s['id'] != $booking['id']) {
+                      $hasFutureSiblings = true;
+                      break;
+                  }
+              }
+          }
+        ?>
+        <?php if ($isSeries && $hasFutureSiblings): ?>
+        <button @click="showCancelSeries = !showCancelSeries; showCancel = false" class="btn-secondary w-full text-red-600 border-red-200 hover:bg-red-50">
+          Cancelar toda a série
+        </button>
+        <?php endif; ?>
+
+        <div x-show="showCancel" x-cloak class="mt-1" x-transition>
           <form method="POST" action="<?= base_url('reservas/' . $booking['id'] . '/cancelar') ?>">
             <?= csrf_field() ?>
             <label for="cancel_reason" class="form-label">Motivo (opcional)</label>
@@ -279,6 +464,19 @@ $statusLabel = match($booking['status']) {
             <div class="flex gap-2">
               <button type="button" @click="showCancel = false" class="btn-secondary flex-1">Não</button>
               <button type="submit" class="btn-danger flex-1">Confirmar</button>
+            </div>
+          </form>
+        </div>
+
+        <div x-show="showCancelSeries" x-cloak class="mt-1" x-transition>
+          <div class="bg-red-50 border border-red-200 rounded-lg p-3 mb-3">
+            <p class="text-xs text-red-700 font-medium">Atenção: todas as ocorrências futuras desta série serão canceladas.</p>
+          </div>
+          <form method="POST" action="<?= base_url('reservas/' . $booking['id'] . '/cancelar-serie') ?>">
+            <?= csrf_field() ?>
+            <div class="flex gap-2">
+              <button type="button" @click="showCancelSeries = false" class="btn-secondary flex-1">Não</button>
+              <button type="submit" class="btn-danger flex-1">Cancelar série</button>
             </div>
           </form>
         </div>
@@ -304,4 +502,22 @@ function ratingWidget() {
   };
 }
 </script>
+<?php if (!empty($qrCheckinUrl) && in_array($booking['status'], ['pending', 'approved']) && empty($booking['checkin_at'])): ?>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  var container = document.getElementById('qr-container');
+  if (container) {
+    new QRCode(container, {
+      text: <?= json_encode($qrCheckinUrl) ?>,
+      width: 160,
+      height: 160,
+      colorDark: '#1e293b',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M,
+    });
+  }
+});
+</script>
+<?php endif; ?>
 <?= $this->endSection() ?>

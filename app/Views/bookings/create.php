@@ -469,6 +469,29 @@
           </div>
         </div>
 
+        <!-- Book on behalf of another user (staff only) -->
+        <?php if (!empty($forUsers)): ?>
+        <div x-show="step >= 3" class="mt-4">
+          <div class="card">
+            <div class="card-header">
+              <h2 class="text-sm font-semibold text-slate-900">Reservar em nome de <span class="text-slate-400 font-normal">(opcional)</span></h2>
+            </div>
+            <div class="card-body">
+              <label for="for_user_id" class="form-label">Reservar em nome de</label>
+              <select id="for_user_id" name="for_user_id" class="form-input">
+                <option value="">— Para mim mesmo —</option>
+                <?php foreach ($forUsers as $u): ?>
+                  <option value="<?= $u['id'] ?>" <?= old('for_user_id') == $u['id'] ? 'selected' : '' ?>>
+                    <?= esc($u['name']) ?> (<?= esc($u['email']) ?>)
+                  </option>
+                <?php endforeach; ?>
+              </select>
+              <p class="form-hint">Deixe em branco para reservar para você mesmo.</p>
+            </div>
+          </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Equipment (only if room allows) -->
         <?php if (!empty($equipment)): ?>
         <div class="card" x-show="selectedRoom && selectedRoom.allows_equipment_lending" x-cloak>
