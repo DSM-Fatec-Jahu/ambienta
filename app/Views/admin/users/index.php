@@ -2,11 +2,58 @@
 
 <?= $this->section('content') ?>
 
-<div class="page-header">
+<div class="page-header" x-data="{ inviteOpen: false }">
   <div>
     <h1 class="page-title">Usuários</h1>
     <p class="page-subtitle">Gerencie perfis e acesso dos membros da instituição</p>
   </div>
+  <button @click="inviteOpen = true" class="btn-primary">
+    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+        d="M18 9v3m0 0v3m0-3h3m-3 0h-3m-2-5a4 4 0 11-8 0 4 4 0 018 0zM3 20a6 6 0 0112 0v1H3v-1z"/>
+    </svg>
+    Convidar usuário
+  </button>
+
+  <!-- Invite modal -->
+  <div x-show="inviteOpen" class="modal-overlay" x-cloak @keydown.escape.window="inviteOpen = false">
+    <div class="modal-panel max-w-md" @click.stop>
+      <div class="modal-header">
+        <h3 class="text-sm font-semibold text-slate-900">Convidar novo usuário</h3>
+        <button @click="inviteOpen = false" class="btn-ghost btn-sm p-1" aria-label="Fechar">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+      <form method="POST" action="<?= base_url('admin/usuarios/convidar') ?>">
+        <?= csrf_field() ?>
+        <div class="modal-body space-y-4">
+          <p class="text-xs text-slate-500">
+            Um e-mail com link de ativação será enviado. O convite expira em 72 horas.
+          </p>
+          <div>
+            <label for="inv_email" class="form-label form-label-required">E-mail do convidado</label>
+            <input type="email" id="inv_email" name="email"
+                   class="form-input" required placeholder="usuario@exemplo.com" autocomplete="off">
+          </div>
+          <div>
+            <label for="inv_role" class="form-label form-label-required">Perfil</label>
+            <select id="inv_role" name="role" class="form-input">
+              <?php foreach ($rolesList as $key => $label): ?>
+                <option value="<?= $key ?>"><?= esc($label) ?></option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" @click="inviteOpen = false" class="btn-secondary">Cancelar</button>
+          <button type="submit" class="btn-primary">Enviar convite</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
 </div>
 
 <!-- Search -->

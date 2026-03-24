@@ -4,10 +4,12 @@ namespace App\Controllers\Auth;
 
 use App\Controllers\BaseController;
 use App\Models\UserModel;
+use App\Models\UserInviteModel;
 
 class LoginController extends BaseController
 {
-    protected UserModel $userModel;
+    protected UserModel       $userModel;
+    protected UserInviteModel $inviteModel;
 
     public function initController(
         \CodeIgniter\HTTP\RequestInterface $request,
@@ -15,7 +17,8 @@ class LoginController extends BaseController
         \Psr\Log\LoggerInterface $logger
     ): void {
         parent::initController($request, $response, $logger);
-        $this->userModel = new UserModel();
+        $this->userModel   = new UserModel();
+        $this->inviteModel = new UserInviteModel();
     }
 
     /** GET /login */
@@ -133,10 +136,7 @@ class LoginController extends BaseController
         if ($user && $user['is_active']) {
             $token = bin2hex(random_bytes(32));
             $this->userModel->setResetToken($user['id'], $token);
-
-            // TODO Sprint 10: send via EmailService
-            // For now, log to CI4 log for dev environment
-            log_message('info', "[Password Reset] Token for {$email}: {$token}");
+            service('notification')->passwordReset($user, $token, $this->institution);
         }
 
         return redirect()->to(base_url('login'))
@@ -195,6 +195,94 @@ class LoginController extends BaseController
 
         return redirect()->to(base_url('login'))
             ->with('success', 'Senha redefinida com sucesso. Faça login.');
+    }
+
+    /** GET /convite/:token */
+    public function acceptInvite(string $token): string|\CodeIgniter\HTTP\RedirectResponse
+    {
+        if (session()->get('user_id')) {
+            return redirect()->to(base_url('dashboard'));
+        }
+
+        $invite = $this->inviteModel->findByToken($token);
+
+        if (!$invite || !$this->inviteModel->isValid($invite)) {
+            return redirect()->to(base_url('login'))
+                ->with('error', 'Este convite é inválido ou já expirou.');
+        }
+
+        return view('auth/accept_invite', $this->viewData([
+            'pageTitle' => 'Aceitar Convite',
+            'invite'    => $invite,
+            'token'     => $token,
+            'errors'    => [],
+        ]));
+    }
+
+    /** POST /convite/:token */
+    public function processInvite(string $token): \CodeIgniter\HTTP\RedirectResponse|string
+    {
+        if (session()->get('user_id')) {
+            return redirect()->to(base_url('dashboard'));
+        }
+
+        $invite = $this->inviteModel->findByToken($token);
+
+        if (!$invite || !$this->inviteModel->isValid($invite)) {
+            return redirect()->to(base_url('login'))
+                ->with('error', 'Este convite é inválido ou já expirou.');
+        }
+
+        $name    = trim($this->request->getPost('name') ?? '');
+        $pass    = $this->request->getPost('password') ?? '';
+        $confirm = $this->request->getPost('password_confirm') ?? '';
+
+        $errors = [];
+        if (strlen($name) < 2) {
+            $errors[] = 'O nome deve ter pelo menos 2 caracteres.';
+        }
+        if (strlen($pass) < 8) {
+            $errors[] = 'A senha deve ter no mínimo 8 caracteres.';
+        }
+        if ($pass !== $confirm) {
+            $errors[] = 'As senhas não coincidem.';
+        }
+
+        // Check if email was already registered during the invite window
+        $existing = $this->userModel->findByEmail($invite['email']);
+        if ($existing) {
+            $this->inviteModel->accept((int) $invite['id']);
+            return redirect()->to(base_url('login'))
+                ->with('info', 'Este e-mail já possui uma conta. Faça login normalmente.');
+        }
+
+        if (!empty($errors)) {
+            return view('auth/accept_invite', $this->viewData([
+                'pageTitle' => 'Aceitar Convite',
+                'invite'    => $invite,
+                'token'     => $token,
+                'errors'    => $errors,
+            ]));
+        }
+
+        $userId = $this->userModel->insert([
+            'institution_id' => (int) $invite['institution_id'],
+            'name'           => $name,
+            'email'          => $invite['email'],
+            'password_hash'  => password_hash($pass, PASSWORD_BCRYPT, ['cost' => 12]),
+            'role'           => $invite['role'],
+            'is_active'      => 1,
+        ]);
+
+        $this->inviteModel->accept((int) $invite['id']);
+
+        $user = $this->userModel->find($userId);
+        $this->setUserSession($user);
+
+        service('audit')->log('user.invite_accepted', 'user', $userId, null, ['email' => $invite['email']]);
+
+        return redirect()->to(base_url('dashboard'))
+            ->with('success', 'Bem-vindo(a)! Sua conta foi criada com sucesso.');
     }
 
     // ── Helpers ──────────────────────────────────────────────────────

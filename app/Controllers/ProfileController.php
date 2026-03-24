@@ -8,6 +8,10 @@ class ProfileController extends BaseController
 {
     private UserModel $users;
 
+    private const AVATAR_DIR      = FCPATH . 'uploads/avatars/';
+    private const AVATAR_MAX_KB   = 2048;   // 2 MB
+    private const AVATAR_ALLOWED  = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
+
     public function __construct()
     {
         $this->users = new UserModel();
@@ -93,5 +97,69 @@ class ProfileController extends BaseController
 
         return redirect()->to(base_url('perfil'))
             ->with('success', 'Senha alterada com sucesso.');
+    }
+
+    public function uploadAvatar(): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $id   = (int) $this->currentUser()['id'];
+        $user = $this->users->find($id);
+
+        if (!$user) {
+            return redirect()->to(base_url('perfil'))->with('error', 'Usuário não encontrado.');
+        }
+
+        $file = $this->request->getFile('avatar');
+
+        if (!$file || !$file->isValid() || $file->hasMoved()) {
+            return redirect()->to(base_url('perfil'))->with('error', 'Nenhum arquivo enviado ou arquivo inválido.');
+        }
+
+        if (!in_array($file->getMimeType(), self::AVATAR_ALLOWED, true)) {
+            return redirect()->to(base_url('perfil'))->with('error', 'Formato não suportado. Use JPEG, PNG, WebP ou GIF.');
+        }
+
+        if ($file->getSizeByUnit('kb') > self::AVATAR_MAX_KB) {
+            return redirect()->to(base_url('perfil'))->with('error', 'Arquivo muito grande. Limite: 2 MB.');
+        }
+
+        // Ensure directory exists
+        if (!is_dir(self::AVATAR_DIR)) {
+            mkdir(self::AVATAR_DIR, 0755, true);
+        }
+
+        // Remove old local avatar
+        if (!empty($user['avatar_path'])) {
+            $old = FCPATH . 'uploads/avatars/' . basename($user['avatar_path']);
+            if (is_file($old)) {
+                @unlink($old);
+            }
+        }
+
+        $newName = 'user_' . $id . '_' . time() . '.' . $file->getExtension();
+        $file->move(self::AVATAR_DIR, $newName);
+
+        $this->users->update($id, ['avatar_path' => $newName]);
+        session()->set('user_avatar_path', $newName);
+
+        service('audit')->log('user.avatar_updated', 'user', $id);
+
+        return redirect()->to(base_url('perfil'))->with('success', 'Foto de perfil atualizada.');
+    }
+
+    public function deleteAvatar(): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $id   = (int) $this->currentUser()['id'];
+        $user = $this->users->find($id);
+
+        if (!empty($user['avatar_path'])) {
+            $path = FCPATH . 'uploads/avatars/' . basename($user['avatar_path']);
+            if (is_file($path)) {
+                @unlink($path);
+            }
+            $this->users->update($id, ['avatar_path' => null]);
+            session()->set('user_avatar_path', null);
+        }
+
+        return redirect()->to(base_url('perfil'))->with('success', 'Foto de perfil removida.');
     }
 }

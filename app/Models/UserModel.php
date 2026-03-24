@@ -19,6 +19,7 @@ class UserModel extends Model
         'password_hash',
         'google_id',
         'avatar_url',
+        'avatar_path',
         'role',
         'is_active',
         'login_attempts',

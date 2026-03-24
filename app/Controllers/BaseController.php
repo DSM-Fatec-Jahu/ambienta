@@ -87,22 +87,24 @@ abstract class BaseController extends Controller
         }
 
         return [
-            'id'         => $id,
-            'name'       => session()->get('user_name'),
-            'email'      => session()->get('user_email'),
-            'role'       => session()->get('user_role'),
-            'avatar_url' => session()->get('user_avatar'),
+            'id'          => $id,
+            'name'        => session()->get('user_name'),
+            'email'       => session()->get('user_email'),
+            'role'        => session()->get('user_role'),
+            'avatar_url'  => session()->get('user_avatar'),
+            'avatar_path' => session()->get('user_avatar_path'),
         ];
     }
 
     protected function setUserSession(array $user): void
     {
         session()->set([
-            'user_id'     => $user['id'],
-            'user_name'   => $user['name'],
-            'user_email'  => $user['email'],
-            'user_role'   => $user['role'],
-            'user_avatar' => $user['avatar_url'] ?? null,
+            'user_id'          => $user['id'],
+            'user_name'        => $user['name'],
+            'user_email'       => $user['email'],
+            'user_role'        => $user['role'],
+            'user_avatar'      => $user['avatar_url']  ?? null,
+            'user_avatar_path' => $user['avatar_path'] ?? null,
         ]);
         session()->regenerate(true);
     }

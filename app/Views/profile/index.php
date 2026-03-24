@@ -14,15 +14,73 @@
   <!-- Left: avatar + role info -->
   <div class="space-y-4">
     <div class="card">
-      <div class="card-body flex flex-col items-center text-center gap-3 py-6">
-        <?php if (!empty($profileUser['avatar_url'])): ?>
-          <img src="<?= esc($profileUser['avatar_url']) ?>" alt="Avatar"
-               class="h-20 w-20 rounded-full object-cover ring-4 ring-white shadow-md">
-        <?php else: ?>
-          <div class="h-20 w-20 rounded-full bg-primary flex items-center justify-center
-                      text-2xl font-bold text-white ring-4 ring-white shadow-md">
-            <?= strtoupper(substr($profileUser['name'] ?? 'U', 0, 1)) ?>
-          </div>
+      <div class="card-body flex flex-col items-center text-center gap-3 py-6"
+           x-data="avatarUpload()">
+
+        <!-- Avatar display -->
+        <div class="relative group">
+          <?php if (!empty($profileUser['avatar_path'])): ?>
+            <img :src="preview || '<?= esc(base_url('uploads/avatars/' . $profileUser['avatar_path'])) ?>'"
+                 alt="Avatar"
+                 class="h-20 w-20 rounded-full object-cover ring-4 ring-white shadow-md">
+          <?php elseif (!empty($profileUser['avatar_url'])): ?>
+            <img :src="preview || '<?= esc($profileUser['avatar_url']) ?>'"
+                 alt="Avatar"
+                 class="h-20 w-20 rounded-full object-cover ring-4 ring-white shadow-md">
+          <?php else: ?>
+            <template x-if="!preview">
+              <div class="h-20 w-20 rounded-full bg-primary flex items-center justify-center
+                          text-2xl font-bold text-white ring-4 ring-white shadow-md">
+                <?= strtoupper(substr($profileUser['name'] ?? 'U', 0, 1)) ?>
+              </div>
+            </template>
+            <template x-if="preview">
+              <img :src="preview" alt="Preview"
+                   class="h-20 w-20 rounded-full object-cover ring-4 ring-white shadow-md">
+            </template>
+          <?php endif; ?>
+
+          <!-- Overlay edit button -->
+          <label for="avatar_file"
+                 class="absolute inset-0 rounded-full flex items-center justify-center
+                        bg-black/40 text-white opacity-0 group-hover:opacity-100
+                        transition-opacity cursor-pointer"
+                 title="Trocar foto">
+            <svg class="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/>
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/>
+            </svg>
+          </label>
+        </div>
+
+        <!-- Upload form (hidden until preview selected) -->
+        <form method="POST" action="<?= base_url('perfil/avatar') ?>"
+              enctype="multipart/form-data" x-ref="uploadForm" id="avatarForm">
+          <?= csrf_field() ?>
+          <input type="file" id="avatar_file" name="avatar" accept="image/*"
+                 class="sr-only" @change="onFileChange($event)">
+        </form>
+
+        <!-- Save / Cancel preview buttons -->
+        <div x-show="preview" x-cloak class="flex gap-2">
+          <button type="submit" form="avatarForm" class="btn-primary btn-sm">
+            Salvar foto
+          </button>
+          <button type="button" @click="preview = null" class="btn-secondary btn-sm">
+            Cancelar
+          </button>
+        </div>
+
+        <!-- Remove avatar link (only if has a local avatar) -->
+        <?php if (!empty($profileUser['avatar_path'])): ?>
+          <form method="POST" action="<?= base_url('perfil/avatar/remover') ?>" x-show="!preview"
+                onsubmit="return confirm('Remover foto de perfil?')">
+            <?= csrf_field() ?>
+            <button type="submit" class="text-xs text-slate-400 hover:text-red-500 transition-colors">
+              Remover foto
+            </button>
+          </form>
         <?php endif; ?>
 
         <div>
@@ -161,5 +219,27 @@
   </div>
 
 </div>
+
+<?= $this->section('scripts') ?>
+<script>
+function avatarUpload() {
+  return {
+    preview: null,
+    onFileChange(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      if (file.size > 2 * 1024 * 1024) {
+        alert('O arquivo excede o limite de 2 MB.');
+        event.target.value = '';
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (e) => { this.preview = e.target.result; };
+      reader.readAsDataURL(file);
+    },
+  };
+}
+</script>
+<?= $this->endSection() ?>
 
 <?= $this->endSection() ?>

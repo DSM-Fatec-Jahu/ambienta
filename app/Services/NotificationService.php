@@ -314,4 +314,46 @@ class NotificationService
 
         return $this->send($user['email'], $subject, $body);
     }
+
+    // ── Account / Auth notifications ─────────────────────────────────────────
+
+    /**
+     * Sends an email invite to a new user with a link to accept and set up their account.
+     * No in-app notification (user doesn't have an account yet).
+     */
+    public function userInvited(array $invite, string $inviterName, array $institution): bool
+    {
+        $subject  = "[{$this->appName}] Você foi convidado para acessar o sistema";
+        $acceptUrl = $this->appUrl . '/convite/' . $invite['token'];
+
+        $body = view('emails/user_invited', [
+            'appName'      => $this->appName,
+            'appUrl'       => $this->appUrl,
+            'invite'       => $invite,
+            'inviterName'  => $inviterName,
+            'institution'  => $institution,
+            'acceptUrl'    => $acceptUrl,
+        ]);
+
+        return $this->send($invite['email'], $subject, $body);
+    }
+
+    /**
+     * Sends a password reset link to the user.
+     * No in-app notification (user may be unable to log in).
+     */
+    public function passwordReset(array $user, string $token, array $institution): bool
+    {
+        $subject  = "[{$this->appName}] Redefinição de senha";
+        $resetUrl = $this->appUrl . '/redefinir-senha/' . $token;
+
+        $body = view('emails/password_reset', [
+            'appName'  => $this->appName,
+            'appUrl'   => $this->appUrl,
+            'user'     => $user,
+            'resetUrl' => $resetUrl,
+        ]);
+
+        return $this->send($user['email'], $subject, $body);
+    }
 }

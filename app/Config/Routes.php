@@ -25,6 +25,10 @@ $routes->post('redefinir-senha/(:segment)', 'Auth\LoginController::updatePasswor
 $routes->get('auth/google',          'Auth\GoogleController::redirect');
 $routes->get('auth/google/callback', 'Auth\GoogleController::callback');
 
+// User invite acceptance (public — no auth required)
+$routes->get( 'convite/(:segment)', 'Auth\LoginController::acceptInvite/$1');
+$routes->post('convite/(:segment)', 'Auth\LoginController::processInvite/$1');
+
 // ─── Authenticated routes (require login) ────────────────────────────────────
 $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
@@ -79,6 +83,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
         // Users
         $routes->get( 'usuarios',                      'Admin\UsersController::index');
+        $routes->post('usuarios/convidar',             'Admin\UsersController::invite');
         $routes->post('usuarios/(:num)/role',          'Admin\UsersController::updateRole/$1');
         $routes->post('usuarios/(:num)/toggle-active', 'Admin\UsersController::toggleActive/$1');
 
@@ -119,9 +124,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->get('notificacoes', 'NotificationsController::index');
 
     // ── Profile ───────────────────────────────────────────────────────────────
-    $routes->get( 'perfil',       'ProfileController::index');
-    $routes->post('perfil/info',  'ProfileController::updateInfo');
-    $routes->post('perfil/senha', 'ProfileController::updatePassword');
+    $routes->get( 'perfil',               'ProfileController::index');
+    $routes->post('perfil/info',          'ProfileController::updateInfo');
+    $routes->post('perfil/senha',         'ProfileController::updatePassword');
+    $routes->post('perfil/avatar',        'ProfileController::uploadAvatar');
+    $routes->post('perfil/avatar/remover','ProfileController::deleteAvatar');
 });
 
 // ── Public API ────────────────────────────────────────────────────────────────

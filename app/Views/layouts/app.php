@@ -141,8 +141,13 @@
          class="flex items-center gap-3 px-3 py-2.5 rounded-lg group
                 transition-colors hover:bg-slate-800 cursor-pointer"
          onclick="return confirm('Deseja sair do sistema?')">
-        <?php if (!empty($currentUser['avatar_url'])): ?>
-          <img src="<?= esc($currentUser['avatar_url']) ?>" alt="Avatar"
+        <?php
+          $sidebarAvatar = !empty($currentUser['avatar_path'])
+            ? base_url('uploads/avatars/' . $currentUser['avatar_path'])
+            : ($currentUser['avatar_url'] ?? null);
+        ?>
+        <?php if ($sidebarAvatar): ?>
+          <img src="<?= esc($sidebarAvatar) ?>" alt="Avatar"
                class="h-7 w-7 rounded-full object-cover ring-1 ring-slate-700 flex-shrink-0">
         <?php else: ?>
           <div class="h-7 w-7 rounded-full bg-primary/30 flex items-center justify-center
@@ -315,8 +320,13 @@
           <button @click="open = !open" @keydown.escape="open = false"
                   class="flex items-center gap-2 pl-1 pr-2 py-1.5 rounded-lg
                          hover:bg-slate-100 transition-colors">
-            <?php if (!empty($currentUser['avatar_url'])): ?>
-              <img src="<?= esc($currentUser['avatar_url']) ?>" alt="Avatar"
+            <?php
+              $topbarAvatar = !empty($currentUser['avatar_path'])
+                ? base_url('uploads/avatars/' . $currentUser['avatar_path'])
+                : ($currentUser['avatar_url'] ?? null);
+            ?>
+            <?php if ($topbarAvatar): ?>
+              <img src="<?= esc($topbarAvatar) ?>" alt="Avatar"
                    class="h-7 w-7 rounded-full object-cover">
             <?php else: ?>
               <div class="h-7 w-7 rounded-full bg-primary flex items-center justify-center

@@ -4,10 +4,12 @@ namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
 use App\Models\UserModel;
+use App\Models\UserInviteModel;
 
 class UsersController extends BaseController
 {
-    private UserModel $users;
+    private UserModel       $users;
+    private UserInviteModel $invites;
 
     private const ROLES = [
         'role_requester'     => 'Solicitante',
@@ -20,7 +22,8 @@ class UsersController extends BaseController
 
     public function __construct()
     {
-        $this->users = new UserModel();
+        $this->users   = new UserModel();
+        $this->invites = new UserInviteModel();
     }
 
     public function index(): string
@@ -96,5 +99,44 @@ class UsersController extends BaseController
         $label = $newStatus ? 'ativado' : 'desativado';
         return redirect()->to(base_url('admin/usuarios'))
             ->with('success', "Usuário {$user['name']} {$label} com sucesso.");
+    }
+
+    public function invite(): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $currentUser   = $this->currentUser();
+
+        $email = trim($this->request->getPost('email') ?? '');
+        $role  = $this->request->getPost('role') ?? 'role_requester';
+
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
+            return redirect()->to(base_url('admin/usuarios'))->with('error', 'E-mail inválido.');
+        }
+
+        if (!array_key_exists($role, self::ROLES)) {
+            return redirect()->to(base_url('admin/usuarios'))->with('error', 'Perfil inválido.');
+        }
+
+        // Check if user already exists in this institution
+        $existing = $this->users
+            ->where('institution_id', $institutionId)
+            ->where('email', $email)
+            ->first();
+
+        if ($existing) {
+            return redirect()->to(base_url('admin/usuarios'))
+                ->with('error', "Já existe um usuário cadastrado com o e-mail {$email}.");
+        }
+
+        $invite = $this->invites->createInvite($institutionId, (int) $currentUser['id'], $email, $role);
+
+        service('notification')->userInvited($invite, $currentUser['name'], $this->institution);
+        service('audit')->log('user.invite_sent', 'user', (int) $currentUser['id'], null, [
+            'email' => $email,
+            'role'  => $role,
+        ]);
+
+        return redirect()->to(base_url('admin/usuarios'))
+            ->with('success', "Convite enviado para {$email}.");
     }
 }
