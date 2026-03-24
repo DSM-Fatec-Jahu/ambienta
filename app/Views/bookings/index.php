@@ -7,12 +7,23 @@
     <h1 class="page-title">Minhas Reservas</h1>
     <p class="page-subtitle">Histórico e status das suas solicitações</p>
   </div>
-  <a href="<?= base_url('reservas/nova') ?>" class="btn-primary">
-    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-    </svg>
-    Nova Reserva
-  </a>
+  <div class="flex items-center gap-2">
+    <a href="<?= base_url('reservas/calendario.ics') ?>"
+       class="btn-secondary text-xs"
+       title="Exportar reservas aprovadas para Google Calendar, Outlook, etc.">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+      </svg>
+      iCal
+    </a>
+    <a href="<?= base_url('reservas/nova') ?>" class="btn-primary">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Nova Reserva
+    </a>
+  </div>
 </div>
 
 <!-- Status filter tabs -->

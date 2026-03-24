@@ -39,6 +39,7 @@
             <th>Prédio / Andar</th>
             <th class="text-center">Capacidade</th>
             <th class="text-center">Emp. equip.</th>
+            <th class="text-center">Avaliação</th>
             <th>Status</th>
             <th class="w-24 text-right">Ações</th>
           </tr>
@@ -68,6 +69,22 @@
                 <span class="text-success">Sim</span>
               <?php else: ?>
                 <span class="text-slate-300">Não</span>
+              <?php endif; ?>
+            </td>
+            <td class="text-center">
+              <?php
+              $rData = $ratingsMap[(int) $r['id']] ?? null;
+              if ($rData && $rData['total_ratings'] > 0):
+              ?>
+                <span class="inline-flex items-center gap-1 text-xs font-semibold text-amber-600">
+                  <svg class="w-3.5 h-3.5 text-amber-400" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                  </svg>
+                  <?= number_format($rData['avg_rating'], 1) ?>
+                  <span class="text-slate-400 font-normal">(<?= $rData['total_ratings'] ?>)</span>
+                </span>
+              <?php else: ?>
+                <span class="text-slate-300 text-xs">—</span>
               <?php endif; ?>
             </td>
             <td>

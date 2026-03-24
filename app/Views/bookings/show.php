@@ -112,6 +112,73 @@ $statusLabel = match($booking['status']) {
     </div>
     <?php endif; ?>
 
+    <!-- ── Rating section ─────────────────────────────────────── -->
+    <?php if ($canRate): ?>
+    <div class="card" x-data="ratingWidget()">
+      <div class="card-header">
+        <h2 class="text-sm font-semibold text-slate-900">Avaliar reserva</h2>
+        <span class="text-xs text-slate-400">Como foi o uso do ambiente?</span>
+      </div>
+      <div class="card-body">
+        <form method="POST" action="<?= base_url('reservas/' . $booking['id'] . '/avaliar') ?>">
+          <?= csrf_field() ?>
+
+          <!-- Stars -->
+          <div class="flex items-center gap-1 mb-4">
+            <?php for ($s = 1; $s <= 5; $s++): ?>
+            <button type="button" @click="setRating(<?= $s ?>)"
+                    @mouseover="hover = <?= $s ?>" @mouseleave="hover = 0"
+                    class="focus:outline-none">
+              <svg class="w-8 h-8 transition-colors"
+                   :class="(hover || selected) >= <?= $s ?> ? 'text-amber-400' : 'text-slate-200'"
+                   fill="currentColor" viewBox="0 0 24 24">
+                <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+              </svg>
+            </button>
+            <?php endfor; ?>
+            <span class="ml-2 text-sm text-slate-500" x-text="ratingLabel"></span>
+          </div>
+
+          <input type="hidden" name="rating" :value="selected">
+
+          <label for="rating_comment" class="form-label">Comentário <span class="text-slate-400">(opcional)</span></label>
+          <textarea id="rating_comment" name="comment" rows="3"
+                    class="form-input resize-none mb-4"
+                    placeholder="Descreva sua experiência com o ambiente..."></textarea>
+
+          <button type="submit" class="btn-primary" :disabled="selected === 0"
+                  x-bind:class="selected === 0 ? 'opacity-50 cursor-not-allowed' : ''">
+            Enviar avaliação
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <?php elseif ($existingRating): ?>
+    <div class="card">
+      <div class="card-header">
+        <h2 class="text-sm font-semibold text-slate-900">Sua avaliação</h2>
+      </div>
+      <div class="card-body">
+        <div class="flex items-center gap-1 mb-2">
+          <?php for ($s = 1; $s <= 5; $s++): ?>
+          <svg class="w-5 h-5 <?= $s <= $existingRating['rating'] ? 'text-amber-400' : 'text-slate-200' ?>"
+               fill="currentColor" viewBox="0 0 24 24">
+            <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+          </svg>
+          <?php endfor; ?>
+          <span class="ml-1 text-sm font-semibold text-slate-700"><?= $existingRating['rating'] ?>/5</span>
+        </div>
+        <?php if ($existingRating['comment']): ?>
+          <p class="text-sm text-slate-600 italic">"<?= esc($existingRating['comment']) ?>"</p>
+        <?php endif; ?>
+        <p class="text-xs text-slate-400 mt-2">
+          Avaliado em <?= date('d/m/Y', strtotime($existingRating['created_at'])) ?>
+        </p>
+      </div>
+    </div>
+    <?php endif; ?>
+
   </div>
 
   <!-- Sidebar: status + actions -->
@@ -178,4 +245,18 @@ $statusLabel = match($booking['status']) {
 
 </div>
 
+<?= $this->endSection() ?>
+
+<?= $this->section('scripts') ?>
+<script>
+function ratingWidget() {
+  return {
+    selected: 0,
+    hover: 0,
+    labels: ['', 'Péssimo', 'Ruim', 'Regular', 'Bom', 'Excelente'],
+    get ratingLabel() { return this.labels[this.hover || this.selected] || ''; },
+    setRating(val) { this.selected = val; },
+  };
+}
+</script>
 <?= $this->endSection() ?>

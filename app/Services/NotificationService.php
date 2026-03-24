@@ -146,4 +146,19 @@ class NotificationService
 
         return $this->send($user['email'], $subject, $body);
     }
+
+    /** Solicita avaliação de reserva realizada ontem. */
+    public function bookingReviewRequest(array $booking, array $user, array $room): bool
+    {
+        $subject = "[{$this->appName}] Como foi \"{$booking['title']}\"? Avalie o ambiente";
+        $body    = view('emails/booking_review_request', [
+            'appName' => $this->appName,
+            'appUrl'  => $this->appUrl,
+            'booking' => $booking,
+            'user'    => $user,
+            'room'    => $room,
+        ]);
+
+        return $this->send($user['email'], $subject, $body);
+    }
 }

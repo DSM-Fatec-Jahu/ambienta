@@ -3,20 +3,23 @@
 namespace App\Controllers;
 
 use App\Models\BookingModel;
+use App\Models\BookingRatingModel;
 use App\Models\RoomModel;
 use App\Models\EquipmentModel;
 use App\Models\HolidayModel;
 
 class BookingsController extends BaseController
 {
-    private BookingModel   $bookings;
-    private RoomModel      $rooms;
-    private EquipmentModel $equipment;
-    private HolidayModel   $holidays;
+    private BookingModel       $bookings;
+    private BookingRatingModel $ratings;
+    private RoomModel          $rooms;
+    private EquipmentModel     $equipment;
+    private HolidayModel       $holidays;
 
     public function __construct()
     {
         $this->bookings  = new BookingModel();
+        $this->ratings   = new BookingRatingModel();
         $this->rooms     = new RoomModel();
         $this->equipment = new EquipmentModel();
         $this->holidays  = new HolidayModel();
@@ -321,12 +324,114 @@ class BookingsController extends BaseController
             ->where('be.booking_id', $id)
             ->get()->getResultArray();
 
+        $existingRating = $this->ratings->forBooking($id);
+
+        // Eligible to rate: approved, date in the past, no rating yet
+        $canRate = $booking['status'] === 'approved'
+            && $booking['date'] < date('Y-m-d')
+            && $existingRating === null;
+
         return view('bookings/show', $this->viewData([
-            'pageTitle'  => 'Detalhe da Reserva',
-            'booking'    => $booking,
-            'room'       => $room,
-            'equipItems' => $equipItems,
+            'pageTitle'      => 'Detalhe da Reserva',
+            'booking'        => $booking,
+            'room'           => $room,
+            'equipItems'     => $equipItems,
+            'existingRating' => $existingRating,
+            'canRate'        => $canRate,
         ]));
+    }
+
+    // ── Rate booking ─────────────────────────────────────────────────
+
+    public function rate(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $user    = $this->currentUser();
+        $booking = $this->bookings->find($id);
+
+        if (!$booking || $booking['user_id'] != $user['id']) {
+            return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
+        }
+
+        if ($booking['status'] !== 'approved' || $booking['date'] >= date('Y-m-d')) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Esta reserva não pode ser avaliada.');
+        }
+
+        if ($this->ratings->forBooking($id) !== null) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Esta reserva já foi avaliada.');
+        }
+
+        $rating = (int) $this->request->getPost('rating');
+        if ($rating < 1 || $rating > 5) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Avaliação inválida. Selecione entre 1 e 5 estrelas.');
+        }
+
+        $this->ratings->insert([
+            'institution_id' => $this->institution['id'] ?? 0,
+            'booking_id'     => $id,
+            'user_id'        => $user['id'],
+            'rating'         => $rating,
+            'comment'        => trim($this->request->getPost('comment') ?? '') ?: null,
+        ]);
+
+        service('audit')->log('booking.rated', 'booking', $id);
+
+        return redirect()->to(base_url('reservas/' . $id))
+            ->with('success', 'Obrigado pela sua avaliação!');
+    }
+
+    // ── Export iCal (.ics) ───────────────────────────────────────────
+
+    public function exportIcal(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $user          = $this->currentUser();
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $bookings = $this->bookings->forUser((int) $user['id'], 'approved');
+
+        $lines   = [];
+        $lines[] = 'BEGIN:VCALENDAR';
+        $lines[] = 'VERSION:2.0';
+        $lines[] = 'PRODID:-//Ambienta//Reservas//PT';
+        $lines[] = 'CALSCALE:GREGORIAN';
+        $lines[] = 'METHOD:PUBLISH';
+        $lines[] = 'X-WR-CALNAME:Minhas Reservas - ' . ($this->institution['name'] ?? 'Ambienta');
+        $lines[] = 'X-WR-TIMEZONE:America/Sao_Paulo';
+
+        foreach ($bookings as $bk) {
+            $dtStart = str_replace(['-', ':'], '', $bk['date']) . 'T' . str_replace(':', '', substr($bk['start_time'], 0, 5)) . '00';
+            $dtEnd   = str_replace(['-', ':'], '', $bk['date']) . 'T' . str_replace(':', '', substr($bk['end_time'],   0, 5)) . '00';
+            $uid     = 'booking-' . $bk['id'] . '@ambienta';
+            $now     = gmdate('Ymd\THis\Z');
+            $summary = addcslashes($bk['title'], '\\,;');
+            $location= addcslashes($bk['room_name'] ?? '', '\\,;');
+
+            $lines[] = 'BEGIN:VEVENT';
+            $lines[] = 'UID:' . $uid;
+            $lines[] = 'DTSTAMP:' . $now;
+            $lines[] = 'DTSTART;TZID=America/Sao_Paulo:' . $dtStart;
+            $lines[] = 'DTEND;TZID=America/Sao_Paulo:' . $dtEnd;
+            $lines[] = 'SUMMARY:' . $summary;
+            if ($location) {
+                $lines[] = 'LOCATION:' . $location;
+            }
+            if (!empty($bk['description'])) {
+                $lines[] = 'DESCRIPTION:' . addcslashes(str_replace(["\r\n", "\n", "\r"], '\\n', $bk['description']), '\\,;');
+            }
+            $lines[] = 'STATUS:CONFIRMED';
+            $lines[] = 'END:VEVENT';
+        }
+
+        $lines[] = 'END:VCALENDAR';
+
+        $ical = implode("\r\n", $lines) . "\r\n";
+
+        return $this->response
+            ->setHeader('Content-Type', 'text/calendar; charset=utf-8')
+            ->setHeader('Content-Disposition', 'attachment; filename="reservas.ics"')
+            ->setBody($ical);
     }
 
     // ── Cancel booking ───────────────────────────────────────────────

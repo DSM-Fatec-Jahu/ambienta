@@ -48,6 +48,10 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->post('reservas/(:num)/recusar',            'BookingsController::reject/$1',  ['filter' => 'not_requester']);
     $routes->post('reservas/(:num)/ausente',            'BookingsController::markAbsent/$1', ['filter' => 'not_requester']);
 
+    // Rating & iCal (must be before :num routes)
+    $routes->get( 'reservas/calendario.ics',            'BookingsController::exportIcal');
+    $routes->post('reservas/(:num)/avaliar',            'BookingsController::rate/$1');
+
     // Authenticated agenda
     $routes->get('reservas/agenda', 'BookingsController::agenda');
 

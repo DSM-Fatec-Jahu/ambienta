@@ -29,12 +29,23 @@ class DashboardController extends BaseController
 
         $activeRooms = count($roomModel->activeForInstitution($institutionId));
 
+        // ── Analytics (staff only) ────────────────────────────────────
+        $weekdayCounts      = [];
+        $institutionSummary = [];
+
+        if ($isStaff) {
+            $weekdayCounts      = $bookingModel->countByWeekdayForInstitution($institutionId, 30);
+            $institutionSummary = $bookingModel->institutionSummary($institutionId, 30);
+        }
+
         return view('dashboard/index', $this->viewData([
-            'pageTitle'    => 'Dashboard',
-            'stats'        => $stats,
-            'pendingCount' => $pendingCount,
-            'activeRooms'  => $activeRooms,
-            'isStaff'      => $isStaff,
+            'pageTitle'          => 'Dashboard',
+            'stats'              => $stats,
+            'pendingCount'       => $pendingCount,
+            'activeRooms'        => $activeRooms,
+            'isStaff'            => $isStaff,
+            'weekdayCounts'      => $weekdayCounts,
+            'institutionSummary' => $institutionSummary,
         ]));
     }
 }
