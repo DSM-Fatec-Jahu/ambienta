@@ -64,6 +64,7 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->post('reservas/(:num)/avaliar',            'BookingsController::rate/$1');
     $routes->post('reservas/(:num)/checkin',            'BookingsController::checkIn/$1');
     $routes->post('reservas/(:num)/cancelar-serie',     'BookingsController::cancelSeries/$1');
+    $routes->post('reservas/(:num)/comentario',         'BookingsController::addComment/$1');
 
     // Authenticated agenda
     $routes->get('reservas/agenda', 'BookingsController::agenda');
@@ -111,6 +112,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get('relatorios/ocupacao/exportar-csv',   'Admin\ReportsController::exportOccupancyCsv');
         $routes->get('relatorios/equipamentos',            'Admin\ReportsController::equipment');
         $routes->get('relatorios/equipamentos/exportar-csv', 'Admin\ReportsController::exportEquipmentCsv');
+        $routes->get('relatorios/usuarios',                  'Admin\ReportsController::userActivity');
+        $routes->get('relatorios/usuarios/exportar-csv',     'Admin\ReportsController::exportUserActivityCsv');
+
+        // Availability grid
+        $routes->get('disponibilidade', 'Admin\AvailabilityController::index');
 
         // Audit
         $routes->get('auditoria',                    'Admin\AuditController::index');
