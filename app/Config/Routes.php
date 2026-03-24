@@ -110,6 +110,14 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('bloqueios/(:num)/delete',       'Admin\BlackoutsController::delete/$1');
     });
 
+    // ── Waitlist (must be before :num routes) ─────────────────────────────────
+    $routes->get( 'reservas/lista-espera',              'BookingsController::myWaitlist');
+    $routes->post('reservas/lista-espera',              'BookingsController::joinWaitlist');
+    $routes->post('reservas/lista-espera/(:num)/sair',  'BookingsController::leaveWaitlist/$1');
+
+    // ── Notifications page ────────────────────────────────────────────────────
+    $routes->get('notificacoes', 'NotificationsController::index');
+
     // ── Profile ───────────────────────────────────────────────────────────────
     $routes->get( 'perfil',       'ProfileController::index');
     $routes->post('perfil/info',  'ProfileController::updateInfo');
@@ -122,3 +130,8 @@ $routes->get('api/agenda/filters', 'Api\AgendaController::filters');
 
 // ── Authenticated API ─────────────────────────────────────────────────────────
 $routes->get('api/reservas/agenda-events', 'Api\AgendaController::userEvents', ['filter' => 'auth']);
+
+// ── Notifications API (authenticated) ─────────────────────────────────────────
+$routes->get( 'api/notificacoes',              'Api\NotificationsController::index',      ['filter' => 'auth']);
+$routes->post('api/notificacoes/todas-lidas',  'Api\NotificationsController::markAllRead', ['filter' => 'auth']);
+$routes->post('api/notificacoes/(:num)/lida',  'Api\NotificationsController::markRead/$1', ['filter' => 'auth']);

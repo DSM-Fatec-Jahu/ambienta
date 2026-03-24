@@ -8,6 +8,7 @@ use App\Models\RoomBlackoutModel;
 use App\Models\RoomModel;
 use App\Models\EquipmentModel;
 use App\Models\HolidayModel;
+use App\Models\WaitlistModel;
 
 class BookingsController extends BaseController
 {
@@ -17,6 +18,7 @@ class BookingsController extends BaseController
     private RoomModel          $rooms;
     private EquipmentModel     $equipment;
     private HolidayModel       $holidays;
+    private WaitlistModel      $waitlist;
 
     public function __construct()
     {
@@ -26,6 +28,7 @@ class BookingsController extends BaseController
         $this->rooms     = new RoomModel();
         $this->equipment = new EquipmentModel();
         $this->holidays  = new HolidayModel();
+        $this->waitlist  = new WaitlistModel();
     }
 
     // ── My bookings ─────────────────────────────────────────────────
@@ -491,9 +494,13 @@ class BookingsController extends BaseController
 
         service('audit')->log('booking.cancelled', 'booking', $id);
 
-        $reason = $this->bookings->find($id)['cancelled_reason'] ?? 'Cancelada pelo solicitante';
+        $updatedBooking = $this->bookings->find($id);
+        $reason    = $updatedBooking['cancelled_reason'] ?? 'Cancelada pelo solicitante';
         $notifRoom = $this->rooms->find($booking['room_id']);
         service('notification')->bookingCancelled($booking, $user, $notifRoom, $reason);
+
+        // Notify next person on waitlist if any
+        $this->waitlist->notifyNext($notifRoom, $booking);
 
         return redirect()->to(base_url('reservas'))
             ->with('success', 'Reserva cancelada.');
@@ -803,5 +810,68 @@ class BookingsController extends BaseController
         ], $bookings);
 
         return $this->response->setJSON(['slots' => $slots]);
+    }
+
+    // ── Waitlist ─────────────────────────────────────────────────────
+
+    /** GET /reservas/lista-espera — show current user's waitlist entries */
+    public function myWaitlist(): string
+    {
+        $user    = $this->currentUser();
+        $entries = $this->waitlist->forUser((int) $user['id']);
+
+        return view('bookings/waitlist', $this->viewData([
+            'pageTitle' => 'Minha Lista de Espera',
+            'entries'   => $entries,
+        ]));
+    }
+
+    /** POST /reservas/lista-espera — join waitlist for a slot */
+    public function joinWaitlist(): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $user          = $this->currentUser();
+
+        $roomId    = (int)   $this->request->getPost('room_id');
+        $date      = (string)$this->request->getPost('date');
+        $startsAt  = (string)$this->request->getPost('start_time');
+        $endsAt    = (string)$this->request->getPost('end_time');
+        $notes     = trim($this->request->getPost('notes') ?? '');
+
+        if (!$roomId || !$date || !$startsAt || !$endsAt) {
+            return redirect()->back()->with('error', 'Dados inválidos para entrar na lista de espera.');
+        }
+
+        if ($date < date('Y-m-d')) {
+            return redirect()->back()->with('error', 'Não é possível entrar na lista de espera para datas passadas.');
+        }
+
+        $room = $this->rooms->where('institution_id', $institutionId)->find($roomId);
+        if (!$room) {
+            return redirect()->back()->with('error', 'Ambiente não encontrado.');
+        }
+
+        if ($this->waitlist->hasEntry($roomId, $date, $startsAt, $endsAt, (int) $user['id'])) {
+            return redirect()->back()->with('error', 'Você já está na lista de espera para este horário.');
+        }
+
+        $this->waitlist->addEntry($institutionId, $roomId, $date, $startsAt, $endsAt, (int) $user['id'], $notes);
+
+        return redirect()->to(base_url('reservas/lista-espera'))
+            ->with('success', 'Você entrou na lista de espera. Será notificado quando uma vaga abrir.');
+    }
+
+    /** POST /reservas/lista-espera/:id/sair — leave waitlist */
+    public function leaveWaitlist(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $user = $this->currentUser();
+
+        if (!$this->waitlist->removeEntry($id, (int) $user['id'])) {
+            return redirect()->to(base_url('reservas/lista-espera'))
+                ->with('error', 'Entrada não encontrada ou você não tem permissão para removê-la.');
+        }
+
+        return redirect()->to(base_url('reservas/lista-espera'))
+            ->with('success', 'Você saiu da lista de espera.');
     }
 }

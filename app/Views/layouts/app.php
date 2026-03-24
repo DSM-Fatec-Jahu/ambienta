@@ -75,6 +75,10 @@
            'badge' => (string)($pendingBadge ?? 0)],
           ['path' => 'reservas/agenda', 'label' => 'Agenda', 'roles' => ['*'],
            'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
+          ['path' => 'reservas/lista-espera', 'label' => 'Lista de Espera', 'roles' => ['*'],
+           'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0'],
+          ['path' => 'notificacoes', 'label' => 'Notificações', 'roles' => ['*'],
+           'icon' => 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9'],
         ],
         'Gestão' => [
           ['path' => 'admin/ambientes', 'label' => 'Ambientes', 'roles' => ['role_technician','role_coordinator','role_vice_director','role_director','role_admin'],
@@ -185,16 +189,126 @@
       <!-- Right actions -->
       <div class="flex items-center gap-1">
 
-        <!-- Notifications -->
-        <button class="relative p-2 rounded-lg text-slate-400 hover:bg-slate-100
-                       hover:text-slate-600 transition-colors"
-                aria-label="Notificações">
-          <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-              d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
-          </svg>
-          <span id="notif-badge" class="hidden absolute top-1.5 right-1.5 h-2 w-2 rounded-full bg-red-500 ring-2 ring-white"></span>
-        </button>
+        <!-- Notifications Bell -->
+        <div class="relative" x-data="notifPanel()" x-init="init()" @keydown.escape.window="open = false">
+
+          <button @click="toggle()"
+                  class="relative p-2 rounded-lg text-slate-400 hover:bg-slate-100
+                         hover:text-slate-600 transition-colors"
+                  aria-label="Notificações">
+            <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"/>
+            </svg>
+            <span x-show="unread > 0" x-cloak
+                  class="absolute top-1 right-1 flex h-4 w-4 items-center justify-center
+                         rounded-full bg-red-500 text-white text-2xs font-bold ring-2 ring-white"
+                  x-text="unread > 9 ? '9+' : unread"></span>
+          </button>
+
+          <!-- Dropdown -->
+          <div x-show="open" @click.away="open = false" x-cloak
+               x-transition:enter="transition ease-out duration-100"
+               x-transition:enter-start="opacity-0 scale-95"
+               x-transition:enter-end="opacity-100 scale-100"
+               x-transition:leave="transition ease-in duration-75"
+               x-transition:leave-start="opacity-100 scale-100"
+               x-transition:leave-end="opacity-0 scale-95"
+               class="absolute right-0 mt-1.5 w-80 bg-white rounded-xl shadow-modal
+                      border border-slate-100 z-50 origin-top-right overflow-hidden">
+
+            <!-- Header -->
+            <div class="flex items-center justify-between px-4 py-2.5 border-b border-slate-100">
+              <p class="text-xs font-semibold text-slate-700">Notificações</p>
+              <button x-show="unread > 0" @click="markAll()"
+                      class="text-2xs text-primary hover:underline">
+                Marcar todas como lidas
+              </button>
+            </div>
+
+            <!-- Items -->
+            <div class="max-h-80 overflow-y-auto divide-y divide-slate-50">
+              <template x-if="items.length === 0">
+                <div class="px-4 py-8 text-center">
+                  <p class="text-xs text-slate-400">Nenhuma notificação</p>
+                </div>
+              </template>
+
+              <template x-for="n in items.slice(0,6)" :key="n.id">
+                <a :href="n.url || '#'"
+                   @click="markOne(n.id); n.read = true;"
+                   class="flex items-start gap-3 px-4 py-3 hover:bg-slate-50 transition-colors cursor-pointer block">
+                  <div class="flex-shrink-0 mt-0.5 h-2 w-2 rounded-full mt-1.5"
+                       :class="n.read ? 'bg-transparent' : 'bg-primary'"></div>
+                  <div class="flex-1 min-w-0">
+                    <p class="text-xs font-medium text-slate-800 truncate" x-text="n.title"></p>
+                    <p class="text-2xs text-slate-400 mt-0.5" x-text="n.ago"></p>
+                  </div>
+                </a>
+              </template>
+            </div>
+
+            <!-- Footer -->
+            <div class="border-t border-slate-100 px-4 py-2">
+              <a href="<?= base_url('notificacoes') ?>"
+                 class="block text-center text-xs text-primary hover:underline py-1">
+                Ver todas as notificações
+              </a>
+            </div>
+
+          </div>
+        </div>
+
+        <script>
+          function notifPanel() {
+            return {
+              open:   false,
+              unread: 0,
+              items:  [],
+              init() {
+                this.fetchNotifs();
+                // Poll every 60 s
+                setInterval(() => { if (!this.open) this.fetchNotifs(); }, 60000);
+              },
+              async fetchNotifs() {
+                try {
+                  const r = await fetch('<?= base_url('api/notificacoes') ?>', { credentials: 'same-origin' });
+                  if (!r.ok) return;
+                  const d = await r.json();
+                  this.unread = d.unread;
+                  this.items  = d.items;
+                } catch (e) {}
+              },
+              toggle() {
+                this.open = !this.open;
+                if (this.open) this.fetchNotifs();
+              },
+              async markOne(id) {
+                try {
+                  await fetch('<?= base_url('api/notificacoes') ?>/' + id + '/lida', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest',
+                               'X-CSRF-TOKEN': '<?= csrf_hash() ?>' },
+                    credentials: 'same-origin',
+                  });
+                  this.unread = Math.max(0, this.unread - 1);
+                } catch(e) {}
+              },
+              async markAll() {
+                try {
+                  await fetch('<?= base_url('api/notificacoes/todas-lidas') ?>', {
+                    method: 'POST',
+                    headers: { 'X-Requested-With': 'XMLHttpRequest',
+                               'X-CSRF-TOKEN': '<?= csrf_hash() ?>' },
+                    credentials: 'same-origin',
+                  });
+                  this.unread = 0;
+                  this.items = this.items.map(n => ({ ...n, read: true }));
+                } catch(e) {}
+              },
+            };
+          }
+        </script>
 
         <!-- Avatar dropdown -->
         <div class="relative" x-data="{ open: false }">
