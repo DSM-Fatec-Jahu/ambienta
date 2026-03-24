@@ -48,9 +48,10 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->post('reservas/(:num)/recusar',            'BookingsController::reject/$1',  ['filter' => 'not_requester']);
     $routes->post('reservas/(:num)/ausente',            'BookingsController::markAbsent/$1', ['filter' => 'not_requester']);
 
-    // Rating & iCal (must be before :num routes)
+    // Rating, iCal & Check-in (must be before :num routes)
     $routes->get( 'reservas/calendario.ics',            'BookingsController::exportIcal');
     $routes->post('reservas/(:num)/avaliar',            'BookingsController::rate/$1');
+    $routes->post('reservas/(:num)/checkin',            'BookingsController::checkIn/$1');
 
     // Authenticated agenda
     $routes->get('reservas/agenda', 'BookingsController::agenda');
@@ -102,6 +103,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         // Operating hours
         $routes->get( 'horarios', 'Admin\OperatingHoursController::index');
         $routes->post('horarios', 'Admin\OperatingHoursController::update');
+
+        // Blackouts
+        $routes->get( 'bloqueios',                     'Admin\BlackoutsController::index');
+        $routes->post('bloqueios',                     'Admin\BlackoutsController::store');
+        $routes->post('bloqueios/(:num)/delete',       'Admin\BlackoutsController::delete/$1');
     });
 
     // ── Profile ───────────────────────────────────────────────────────────────

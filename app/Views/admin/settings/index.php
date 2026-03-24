@@ -125,6 +125,30 @@
             </div>
           </div>
 
+          <!-- Check-in settings -->
+          <div class="pt-2 border-t border-slate-100">
+            <p class="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">Check-in de Presença</p>
+
+            <div class="flex items-start gap-3 mb-4">
+              <input type="hidden" name="auto_cancel_no_checkin" value="0">
+              <input type="checkbox" id="s_autocancel" name="auto_cancel_no_checkin" value="1"
+                     <?= !empty($settings['booking']['auto_cancel_no_checkin']) ? 'checked' : '' ?>
+                     class="mt-0.5 rounded border-slate-300 text-primary">
+              <div>
+                <label for="s_autocancel" class="text-sm font-medium text-slate-700">Cancelar automaticamente reservas sem check-in</label>
+                <p class="text-xs text-slate-400">Quando ativo, o comando <code>booking:auto-cancel</code> cancela reservas aprovadas encerradas sem check-in.</p>
+              </div>
+            </div>
+
+            <div class="max-w-xs">
+              <label for="s_checkin_window" class="form-label">Janela de check-in (min antes do início)</label>
+              <input type="number" id="s_checkin_window" name="checkin_window_min"
+                     value="<?= (int)($settings['booking']['checkin_window_min'] ?? 15) ?>"
+                     class="form-input" min="5" max="120" step="5">
+              <p class="form-hint">Minutos antes do início em que o check-in fica disponível. Padrão: 15 min.</p>
+            </div>
+          </div>
+
         </div>
       </div>
 

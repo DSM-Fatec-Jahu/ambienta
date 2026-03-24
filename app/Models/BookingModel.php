@@ -30,6 +30,7 @@ class BookingModel extends Model
         'recurrence_type',
         'recurrence_end_date',
         'recurrence_parent_id',
+        'checkin_at',
     ];
 
     protected $useTimestamps = true;

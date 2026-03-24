@@ -161,4 +161,19 @@ class NotificationService
 
         return $this->send($user['email'], $subject, $body);
     }
+
+    /** Notifica o solicitante que sua reserva foi cancelada por ausência de check-in. */
+    public function bookingAutoCancel(array $booking, array $user, array $room): bool
+    {
+        $subject = "[{$this->appName}] Reserva cancelada por ausência — {$booking['title']}";
+        $body    = view('emails/booking_auto_cancel', [
+            'appName' => $this->appName,
+            'appUrl'  => $this->appUrl,
+            'booking' => $booking,
+            'user'    => $user,
+            'room'    => $room,
+        ]);
+
+        return $this->send($user['email'], $subject, $body);
+    }
 }

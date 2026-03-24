@@ -89,6 +89,8 @@
         'Administração' => [
           ['path' => 'admin/horarios', 'label' => 'Horários', 'roles' => ['role_director','role_admin'],
            'icon' => 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0'],
+          ['path' => 'admin/bloqueios', 'label' => 'Bloqueios', 'roles' => ['role_technician','role_coordinator','role_vice_director','role_director','role_admin'],
+           'icon' => 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636'],
           ['path' => 'admin/feriados', 'label' => 'Feriados', 'roles' => ['role_director','role_admin'],
            'icon' => 'M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z'],
           ['path' => 'admin/relatorios', 'label' => 'Relatórios', 'roles' => ['role_director','role_admin'],

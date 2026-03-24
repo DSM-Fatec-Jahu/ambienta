@@ -43,7 +43,9 @@ class SettingsController extends BaseController
         $current['booking']['min_duration_min']      = max(15, (int) $this->request->getPost('min_duration_min'));
         $current['booking']['max_duration_min']      = max(15, (int) $this->request->getPost('max_duration_min'));
         $current['booking']['requires_approval']     = (bool) $this->request->getPost('requires_approval');
-        $current['booking']['max_bookings_per_week'] = max(0, (int) $this->request->getPost('max_bookings_per_week'));
+        $current['booking']['max_bookings_per_week']  = max(0, (int) $this->request->getPost('max_bookings_per_week'));
+        $current['booking']['checkin_window_min']     = max(5, (int) $this->request->getPost('checkin_window_min'));
+        $current['booking']['auto_cancel_no_checkin'] = (bool) $this->request->getPost('auto_cancel_no_checkin');
 
         // ── Institution basic info ─────────────────────────────────
         $name  = trim($this->request->getPost('institution_name') ?? '');

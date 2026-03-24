@@ -4,6 +4,7 @@ namespace App\Controllers;
 
 use App\Models\BookingModel;
 use App\Models\BookingRatingModel;
+use App\Models\RoomBlackoutModel;
 use App\Models\RoomModel;
 use App\Models\EquipmentModel;
 use App\Models\HolidayModel;
@@ -12,6 +13,7 @@ class BookingsController extends BaseController
 {
     private BookingModel       $bookings;
     private BookingRatingModel $ratings;
+    private RoomBlackoutModel  $blackouts;
     private RoomModel          $rooms;
     private EquipmentModel     $equipment;
     private HolidayModel       $holidays;
@@ -20,6 +22,7 @@ class BookingsController extends BaseController
     {
         $this->bookings  = new BookingModel();
         $this->ratings   = new BookingRatingModel();
+        $this->blackouts = new RoomBlackoutModel();
         $this->rooms     = new RoomModel();
         $this->equipment = new EquipmentModel();
         $this->holidays  = new HolidayModel();
@@ -151,6 +154,16 @@ class BookingsController extends BaseController
         if ($this->bookings->hasConflict($roomId, $date, $startTime, $endTime)) {
             return redirect()->back()->withInput()
                 ->with('error', 'Já existe uma reserva para este ambiente no horário selecionado. Escolha outro horário.');
+        }
+
+        // Check blackouts
+        $startsAt    = $date . ' ' . $startTime;
+        $endsAt      = $date . ' ' . $endTime;
+        $blackoutHit = $this->blackouts->overlaps($roomId, $institutionId, $startsAt, $endsAt);
+        if (!empty($blackoutHit)) {
+            $bt = $blackoutHit[0];
+            return redirect()->back()->withInput()
+                ->with('error', "O ambiente está bloqueado neste período: \"{$bt['title']}\". Escolha outro horário.");
         }
 
         // Verify room belongs to institution
@@ -331,13 +344,33 @@ class BookingsController extends BaseController
             && $booking['date'] < date('Y-m-d')
             && $existingRating === null;
 
+        // Eligible to check in: approved, today's booking, no check-in yet
+        $checkinSettings    = $this->getCheckinSettings();
+        $canCheckIn         = false;
+        $checkinWindowStart = null;
+        if ($booking['status'] === 'approved'
+            && $booking['date'] === date('Y-m-d')
+            && empty($booking['checkin_at'])
+        ) {
+            $windowMin   = $checkinSettings['checkin_window_min'];
+            $bookingStart = strtotime($booking['date'] . ' ' . $booking['start_time']);
+            $bookingEnd   = strtotime($booking['date'] . ' ' . $booking['end_time']);
+            $windowOpens  = $bookingStart - ($windowMin * 60);
+            $now          = time();
+            $checkinWindowStart = date('H:i', $windowOpens);
+            $canCheckIn   = ($now >= $windowOpens && $now <= $bookingEnd);
+        }
+
         return view('bookings/show', $this->viewData([
-            'pageTitle'      => 'Detalhe da Reserva',
-            'booking'        => $booking,
-            'room'           => $room,
-            'equipItems'     => $equipItems,
-            'existingRating' => $existingRating,
-            'canRate'        => $canRate,
+            'pageTitle'          => 'Detalhe da Reserva',
+            'booking'            => $booking,
+            'room'               => $room,
+            'equipItems'         => $equipItems,
+            'existingRating'     => $existingRating,
+            'canRate'            => $canRate,
+            'canCheckIn'         => $canCheckIn,
+            'checkinWindowStart' => $checkinWindowStart,
+            'checkinSettings'    => $checkinSettings,
         ]));
     }
 
@@ -651,6 +684,57 @@ class BookingsController extends BaseController
             ->with('success', 'Reserva marcada como ausente.');
     }
 
+    // ── Check-in ─────────────────────────────────────────────────────
+
+    public function checkIn(int $id): \CodeIgniter\HTTP\RedirectResponse
+    {
+        $user    = $this->currentUser();
+        $booking = $this->bookings->find($id);
+
+        if (!$booking || $booking['user_id'] != $user['id']) {
+            return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
+        }
+
+        if ($booking['status'] !== 'approved') {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Esta reserva não está aprovada.');
+        }
+
+        if (!empty($booking['checkin_at'])) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'Check-in já registrado para esta reserva.');
+        }
+
+        if ($booking['date'] !== date('Y-m-d')) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'O check-in só pode ser realizado no dia da reserva.');
+        }
+
+        $settings    = $this->getCheckinSettings();
+        $windowMin   = $settings['checkin_window_min'];
+        $bookingStart = strtotime($booking['date'] . ' ' . $booking['start_time']);
+        $bookingEnd   = strtotime($booking['date'] . ' ' . $booking['end_time']);
+        $windowOpens  = $bookingStart - ($windowMin * 60);
+        $now          = time();
+
+        if ($now < $windowOpens) {
+            $opens = date('H:i', $windowOpens);
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', "O check-in abre às {$opens} (até {$windowMin} min antes do início).");
+        }
+
+        if ($now > $bookingEnd) {
+            return redirect()->to(base_url('reservas/' . $id))
+                ->with('error', 'O horário da reserva já encerrou. Check-in não é mais possível.');
+        }
+
+        $this->bookings->update($id, ['checkin_at' => date('Y-m-d H:i:s')]);
+        service('audit')->log('booking.checkin', 'booking', $id);
+
+        return redirect()->to(base_url('reservas/' . $id))
+            ->with('success', 'Check-in realizado com sucesso!');
+    }
+
     // ── Booking policy helpers ───────────────────────────────────────
 
     private function getBookingSettings(): array
@@ -662,6 +746,15 @@ class BookingsController extends BaseController
             'max_duration_min'      => (int)  ($s['max_duration_min']      ?? 480),
             'requires_approval'     => (bool) ($s['requires_approval']     ?? true),
             'max_bookings_per_week' => (int)  ($s['max_bookings_per_week'] ?? 0),
+        ];
+    }
+
+    private function getCheckinSettings(): array
+    {
+        $s = $this->institution['settings_decoded']['booking'] ?? [];
+        return [
+            'checkin_window_min'      => (int)  ($s['checkin_window_min']      ?? 15),
+            'auto_cancel_no_checkin'  => (bool) ($s['auto_cancel_no_checkin']  ?? false),
         ];
     }
 

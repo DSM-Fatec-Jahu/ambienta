@@ -213,8 +213,53 @@ $statusLabel = match($booking['status']) {
           <p class="text-slate-500 italic"><?= esc($booking['cancelled_reason'] ?? '—') ?></p>
         </div>
         <?php endif; ?>
+        <?php if (!empty($booking['checkin_at'])): ?>
+        <div class="pt-2 border-t border-slate-100">
+          <span class="inline-flex items-center gap-1 text-emerald-600 font-medium text-xs">
+            <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0"/>
+            </svg>
+            Check-in realizado
+          </span>
+          <p class="text-slate-400 text-xs mt-0.5"><?= date('d/m/Y H:i', strtotime($booking['checkin_at'])) ?></p>
+        </div>
+        <?php endif; ?>
       </div>
     </div>
+
+    <!-- Check-in -->
+    <?php if ($canCheckIn): ?>
+    <div class="card border-2 border-emerald-400">
+      <div class="card-header bg-emerald-50">
+        <h2 class="text-sm font-semibold text-emerald-800">Check-in disponível</h2>
+      </div>
+      <div class="card-body">
+        <p class="text-xs text-slate-600 mb-3">
+          O check-in está aberto desde as <strong><?= $checkinWindowStart ?></strong>.
+          Confirme sua presença para registrar o uso do ambiente.
+        </p>
+        <form method="POST" action="<?= base_url('reservas/' . $booking['id'] . '/checkin') ?>">
+          <?= csrf_field() ?>
+          <button type="submit" class="btn-primary w-full bg-emerald-600 hover:bg-emerald-700 border-emerald-600">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0"/>
+            </svg>
+            Fazer Check-in
+          </button>
+        </form>
+      </div>
+    </div>
+    <?php elseif ($booking['status'] === 'approved' && $booking['date'] === date('Y-m-d') && empty($booking['checkin_at'])): ?>
+    <div class="card">
+      <div class="card-body text-center text-xs text-slate-500">
+        <svg class="w-5 h-5 mx-auto text-slate-300 mb-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0"/>
+        </svg>
+        Check-in disponível a partir das <strong><?= $checkinWindowStart ?></strong>
+        (<?= $checkinSettings['checkin_window_min'] ?> min antes do início).
+      </div>
+    </div>
+    <?php endif; ?>
 
     <!-- Actions -->
     <?php if (in_array($booking['status'], ['pending', 'approved'])): ?>
