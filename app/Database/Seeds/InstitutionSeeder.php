@@ -42,8 +42,8 @@ class InstitutionSeeder extends Seeder
 
         $this->db->table('institutions')->insert([
             'id'         => 1,
-            'name'       => 'Minha Instituição',
-            'slug'       => 'minha-instituicao',
+            'name'       => 'Fatec Jahu',
+            'slug'       => 'fatec-jahu',
             'logo_path'  => null,
             'settings'   => json_encode($settings),
             'created_at' => date('Y-m-d H:i:s'),
