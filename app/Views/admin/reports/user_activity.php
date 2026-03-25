@@ -13,7 +13,7 @@ $roleLabels = [
   'role_vice_director' => 'Vice-diretor',
   'role_coordinator'   => 'Coordenador',
   'role_technician'    => 'Técnico',
-  'role_requester'     => 'Solicitante',
+  'role_requester'     => 'Professor',
 ];
 ?>
 

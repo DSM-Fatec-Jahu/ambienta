@@ -1,7 +1,7 @@
 <?php
 $emailSubject = 'Você foi convidado para acessar o sistema';
 $roleName = [
-    'role_requester'     => 'Solicitante',
+    'role_requester'     => 'Professor',
     'role_technician'    => 'Resp. Técnico / Apoio',
     'role_coordinator'   => 'Coordenador',
     'role_vice_director' => 'Vice-diretor',
