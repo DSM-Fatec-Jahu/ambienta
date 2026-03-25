@@ -9,23 +9,76 @@
   </div>
 </div>
 
-<!-- ── Date picker ──────────────────────────────────────────────── -->
+<!-- ── Filters ───────────────────────────────────────────────── -->
 <form method="GET" action="<?= base_url('admin/disponibilidade') ?>"
       class="card card-body mb-5 flex flex-wrap items-end gap-4">
+
+  <!-- Date -->
   <div>
     <label for="date" class="form-label">Data</label>
     <input type="date" id="date" name="date" value="<?= esc($date) ?>"
            class="form-input w-44">
   </div>
+
+  <!-- Building filter -->
+  <?php if (!empty($buildings)): ?>
+  <div>
+    <label for="building_id" class="form-label">Prédio</label>
+    <select id="building_id" name="building_id" class="form-input w-48">
+      <option value="">Todos os prédios</option>
+      <?php foreach ($buildings as $b): ?>
+        <option value="<?= $b['id'] ?>" <?= $buildingId == $b['id'] ? 'selected' : '' ?>>
+          <?= esc($b['name']) ?>
+        </option>
+      <?php endforeach; ?>
+    </select>
+  </div>
+  <?php endif; ?>
+
+  <!-- Equipment filter -->
+  <?php if (!empty($equipmentList)): ?>
+  <div x-data="{ open: false }" class="relative">
+    <label class="form-label">Equipamentos</label>
+    <button type="button" @click="open = !open"
+            class="form-input w-52 text-left flex items-center justify-between">
+      <span class="truncate text-sm">
+        <?php
+          $eqNames = array_filter(array_map(function($e) use ($equipmentIds) {
+            return in_array($e['id'], $equipmentIds) ? esc($e['name']) : null;
+          }, $equipmentList));
+          echo !empty($eqNames) ? implode(', ', $eqNames) : 'Todos os equipamentos';
+        ?>
+      </span>
+      <svg class="w-4 h-4 shrink-0 ml-1 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
+      </svg>
+    </button>
+    <div x-show="open" @click.outside="open = false" x-cloak
+         class="absolute z-30 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-2 max-h-60 overflow-y-auto">
+      <?php foreach ($equipmentList as $eq): ?>
+      <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-sm">
+        <input type="checkbox" name="equipment_ids[]" value="<?= $eq['id'] ?>"
+               <?= in_array($eq['id'], $equipmentIds) ? 'checked' : '' ?>
+               class="rounded text-primary">
+        <span><?= esc($eq['name']) ?></span>
+      </label>
+      <?php endforeach; ?>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Actions -->
   <div class="flex items-center gap-2">
     <button type="submit" class="btn-primary">Ver disponibilidade</button>
     <a href="?date=<?= date('Y-m-d') ?>" class="btn-secondary">Hoje</a>
-    <a href="?date=<?= date('Y-m-d', strtotime($date . ' -1 day')) ?>" class="btn-ghost btn-sm p-2" title="Dia anterior">
+    <a href="?date=<?= date('Y-m-d', strtotime($date . ' -1 day')) ?><?= $buildingId ? '&building_id='.$buildingId : '' ?><?= !empty($equipmentIds) ? '&'.http_build_query(['equipment_ids' => $equipmentIds]) : '' ?>"
+       class="btn-ghost btn-sm p-2" title="Dia anterior">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
       </svg>
     </a>
-    <a href="?date=<?= date('Y-m-d', strtotime($date . ' +1 day')) ?>" class="btn-ghost btn-sm p-2" title="Próximo dia">
+    <a href="?date=<?= date('Y-m-d', strtotime($date . ' +1 day')) ?><?= $buildingId ? '&building_id='.$buildingId : '' ?><?= !empty($equipmentIds) ? '&'.http_build_query(['equipment_ids' => $equipmentIds]) : '' ?>"
+       class="btn-ghost btn-sm p-2" title="Próximo dia">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
       </svg>
@@ -45,7 +98,9 @@
   <div class="card card-body">
     <p class="text-2xs text-slate-400 uppercase tracking-wide font-semibold">Salas</p>
     <p class="text-lg font-bold text-slate-800 mt-1"><?= count($rooms) ?></p>
-    <p class="text-xs text-slate-400">ativas</p>
+    <p class="text-xs text-slate-400">
+      <?= ($buildingId || !empty($equipmentIds)) ? 'filtradas' : 'ativas' ?>
+    </p>
   </div>
   <div class="card card-body">
     <p class="text-2xs text-slate-400 uppercase tracking-wide font-semibold">Reservas</p>
@@ -80,7 +135,7 @@
 
 <?php if (empty($rooms)): ?>
 <div class="card card-body text-center py-12">
-  <p class="text-slate-400">Nenhuma sala ativa cadastrada.</p>
+  <p class="text-slate-400">Nenhuma sala encontrada para os filtros selecionados.</p>
 </div>
 <?php elseif (empty($slots)): ?>
 <div class="card card-body text-center py-12">
@@ -92,14 +147,14 @@
 <div class="card overflow-hidden" x-data="availGrid()">
 
   <div class="overflow-x-auto">
-    <table class="w-full text-xs border-collapse" style="min-width: <?= (count($slots) * 52 + 180) ?>px">
+    <table class="w-full text-xs border-collapse" style="min-width: <?= (count($slots) * 80 + 180) ?>px">
       <thead>
         <tr class="bg-slate-50 border-b border-slate-200">
           <th class="sticky left-0 bg-slate-50 z-10 text-left px-3 py-2 font-semibold text-slate-600 w-44 border-r border-slate-200">
             Sala
           </th>
           <?php foreach ($slots as $slot): ?>
-          <th class="px-1 py-2 font-medium text-slate-400 text-center w-[52px] border-r border-slate-100 last:border-r-0">
+          <th class="px-1 py-2 font-medium text-slate-400 text-center w-20 border-r border-slate-100 last:border-r-0">
             <?= $slot ?>
           </th>
           <?php endforeach; ?>
@@ -108,6 +163,8 @@
       <tbody class="divide-y divide-slate-100">
         <?php foreach ($rooms as $room):
           $roomBookings = $bookingsByRoom[$room['id']] ?? [];
+          $totalSlots   = count($slots);
+          $skipUntil    = -1;
         ?>
         <tr class="hover:bg-slate-50/50 transition-colors">
           <!-- Room name (sticky) -->
@@ -126,50 +183,78 @@
 
           <!-- Slots -->
           <?php foreach ($slots as $slotIdx => $slot):
-            // Check if any booking covers this slot
-            $slotStart = $slot;          // e.g. "08:00"
-            $slotEnd   = sprintf('%02d:00', (int)$slot + 1); // e.g. "09:00"
+            // Skip slots already covered by a previous booking's colspan
+            if ($slotIdx <= $skipUntil) continue;
 
+            $slotStart = $slot;
+            $slotEnd   = sprintf('%02d:00', (int)$slot + 1);
+
+            // Find booking overlapping this slot
             $hit = null;
             foreach ($roomBookings as $bk) {
               $bStart = substr($bk['start_time'], 0, 5);
               $bEnd   = substr($bk['end_time'],   0, 5);
-              // Booking overlaps this slot if it starts before slot ends AND ends after slot starts
               if ($bStart < $slotEnd && $bEnd > $slotStart) {
                 $hit = $bk;
                 break;
               }
             }
 
-            $bgClass = match($hit['status'] ?? '') {
-              'approved' => 'bg-primary/15 border border-primary/30',
-              'pending'  => 'bg-amber-50 border border-amber-200',
-              default    => '',
-            };
+            if ($hit):
+              // Calculate how many consecutive slots this booking spans
+              $bStart = substr($hit['start_time'], 0, 5);
+              $bEnd   = substr($hit['end_time'],   0, 5);
+              $span   = 0;
+              for ($j = $slotIdx; $j < $totalSlots; $j++) {
+                $sStart = $slots[$j];
+                $sEnd   = sprintf('%02d:00', (int)$slots[$j] + 1);
+                if ($bStart < $sEnd && $bEnd > $sStart) {
+                  $span++;
+                } else {
+                  break;
+                }
+              }
+              $span      = max(1, $span);
+              $skipUntil = $slotIdx + $span - 1;
+
+              $bgClass   = $hit['status'] === 'approved'
+                ? 'bg-primary/15 border border-primary/30'
+                : 'bg-amber-50 border border-amber-200';
+              $textClass  = $hit['status'] === 'approved' ? 'text-primary' : 'text-amber-700';
+              $subClass   = $hit['status'] === 'approved' ? 'text-primary/70' : 'text-amber-600';
           ?>
-          <td class="p-0.5 border-r border-slate-100 last:border-r-0">
-            <?php if ($hit): ?>
-              <div class="<?= $bgClass ?> rounded h-8 flex items-center justify-center
-                          cursor-pointer group relative overflow-hidden"
-                   @mouseenter="show($event, <?= json_encode([
-                     'title'     => $hit['title'],
-                     'user'      => $hit['user_name'] ?? '',
-                     'start'     => substr($hit['start_time'], 0, 5),
-                     'end'       => substr($hit['end_time'],   0, 5),
-                     'status'    => $hit['status'],
-                     'id'        => $hit['id'],
-                     'attendees' => $hit['attendees_count'],
-                   ]) ?>)"
-                   @mouseleave="hide()">
-                <span class="text-2xs font-semibold truncate px-1
-                             <?= $hit['status'] === 'approved' ? 'text-primary' : 'text-amber-700' ?>">
-                  <?= mb_strimwidth(esc($hit['title']), 0, 8, '…') ?>
+          <td class="p-0.5 border-r border-slate-100 last:border-r-0"
+              colspan="<?= $span ?>">
+            <div class="<?= $bgClass ?> rounded flex flex-col justify-center px-2 py-1 min-h-[2.5rem]
+                        cursor-pointer overflow-hidden"
+                 @mouseenter="show($event, <?= json_encode([
+                   'title'     => $hit['title'],
+                   'user'      => $hit['user_name'] ?? '',
+                   'start'     => substr($hit['start_time'], 0, 5),
+                   'end'       => substr($hit['end_time'],   0, 5),
+                   'status'    => $hit['status'],
+                   'id'        => $hit['id'],
+                   'attendees' => $hit['attendees_count'],
+                 ]) ?>)"
+                 @mouseleave="hide()">
+              <div class="flex items-baseline justify-between gap-1 min-w-0">
+                <span class="text-2xs font-semibold leading-tight truncate <?= $textClass ?>">
+                  <?= esc($hit['title']) ?>
+                </span>
+                <span class="text-2xs font-medium leading-tight shrink-0 <?= $textClass ?> opacity-75 tabular-nums">
+                  <?= substr($hit['start_time'], 0, 5) ?>–<?= substr($hit['end_time'], 0, 5) ?>
                 </span>
               </div>
-            <?php else: ?>
-              <div class="h-8 rounded"></div>
-            <?php endif; ?>
+              <span class="text-2xs leading-tight truncate <?= $subClass ?> mt-0.5">
+                <?= esc($hit['user_name'] ?? '') ?>
+              </span>
+            </div>
           </td>
+          <?php else: ?>
+          <td class="p-0.5 border-r border-slate-100 last:border-r-0">
+            <div class="min-h-[2.5rem] rounded"></div>
+          </td>
+          <?php endif; ?>
           <?php endforeach; ?>
         </tr>
         <?php endforeach; ?>

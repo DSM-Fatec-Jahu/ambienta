@@ -213,11 +213,13 @@ class BookingsController extends BaseController
                 return redirect()->back()->withInput()
                     ->with('error', 'O estabelecimento não funciona neste dia da semana.');
             }
-            if ($ohRow['open_time'] && $startTime < $ohRow['open_time']) {
+            $startNorm = strlen($startTime) === 5 ? $startTime . ':00' : $startTime;
+            $endNorm   = strlen($endTime) === 5 ? $endTime . ':00' : $endTime;
+            if ($ohRow['open_time'] && $startNorm < $ohRow['open_time']) {
                 return redirect()->back()->withInput()
                     ->with('error', 'Horário de início anterior à abertura (' . substr($ohRow['open_time'], 0, 5) . ').');
             }
-            if ($ohRow['close_time'] && $endTime > $ohRow['close_time']) {
+            if ($ohRow['close_time'] && $endNorm > $ohRow['close_time']) {
                 return redirect()->back()->withInput()
                     ->with('error', 'Horário de término posterior ao fechamento (' . substr($ohRow['close_time'], 0, 5) . ').');
             }

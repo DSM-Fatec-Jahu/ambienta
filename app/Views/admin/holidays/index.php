@@ -7,12 +7,23 @@
     <h1 class="page-title">Feriados</h1>
     <p class="page-subtitle">Datas em que reservas ficam bloqueadas automaticamente</p>
   </div>
-  <button @click="$dispatch('open-holiday-modal', { mode: 'create' })" class="btn-primary">
-    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-    </svg>
-    Novo Feriado
-  </button>
+  <div class="flex items-center gap-2" x-data="holidaysImport()">
+    <button @click="importApi()" :disabled="loading"
+            class="btn-secondary flex items-center gap-2"
+            title="Importar feriados nacionais do ano atual via BrasilAPI">
+      <svg class="w-4 h-4" :class="loading ? 'animate-spin' : ''" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+      </svg>
+      <span x-text="loading ? 'Importando...' : 'Importar Nacionais ' + year"></span>
+    </button>
+    <button @click="$dispatch('open-holiday-modal', { mode: 'create' })" class="btn-primary">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Novo Feriado
+    </button>
+  </div>
 </div>
 
 <div class="card overflow-hidden" x-data="holidaysPage()">
@@ -171,6 +182,34 @@
 
 <?= $this->section('scripts') ?>
 <script>
+function holidaysImport() {
+  return {
+    year: new Date().getFullYear(),
+    loading: false,
+
+    async importApi() {
+      this.loading = true;
+      try {
+        const res  = await fetch(`<?= base_url('admin/feriados/importar-api/') ?>${this.year}`, {
+          method: 'POST',
+          headers: { 'X-Requested-With': 'XMLHttpRequest', 'X-CSRF-TOKEN': '<?= csrf_hash() ?>' },
+        });
+        const data = await res.json();
+        if (res.ok) {
+          alert(data.message);
+          if (data.imported > 0) location.reload();
+        } else {
+          alert('Erro: ' + (data.error ?? 'Falha na importação.'));
+        }
+      } catch (e) {
+        alert('Erro de conexão ao importar feriados.');
+      } finally {
+        this.loading = false;
+      }
+    }
+  }
+}
+
 function holidaysPage() {
   return {
     modalOpen: false,

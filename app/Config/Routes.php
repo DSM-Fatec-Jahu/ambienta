@@ -79,15 +79,22 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('predios/(:num)/delete',         'Admin\BuildingsController::delete/$1');
 
         // Rooms / Ambientes
-        $routes->get( 'ambientes',                         'Admin\RoomsController::index');
-        $routes->post('ambientes',                         'Admin\RoomsController::store');
-        $routes->post('ambientes/(:num)/update',           'Admin\RoomsController::update/$1');
-        $routes->post('ambientes/(:num)/delete',           'Admin\RoomsController::delete/$1');
-        $routes->post('ambientes/(:num)/manutencao',       'Admin\RoomsController::setMaintenance/$1');
+        $routes->get( 'ambientes',                                               'Admin\RoomsController::index');
+        $routes->post('ambientes',                                               'Admin\RoomsController::store');
+        $routes->post('ambientes/(:num)/update',                                 'Admin\RoomsController::update/$1');
+        $routes->post('ambientes/(:num)/delete',                                 'Admin\RoomsController::delete/$1');
+        $routes->post('ambientes/(:num)/manutencao',                             'Admin\RoomsController::setMaintenance/$1');
+        // Room equipment
+        $routes->get( 'ambientes/(:num)/equipamentos',                           'Admin\RoomEquipmentController::index/$1');
+        $routes->post('ambientes/(:num)/equipamentos',                           'Admin\RoomEquipmentController::store/$1');
+        $routes->post('ambientes/(:num)/equipamentos/(:num)/delete',             'Admin\RoomEquipmentController::destroy/$1/$2');
 
         // Equipment / Equipamentos
         $routes->get( 'equipamentos',                        'Admin\EquipmentController::index');
         $routes->post('equipamentos',                        'Admin\EquipmentController::store');
+        $routes->get( 'equipamentos/template-csv',           'Admin\EquipmentController::templateCsv');
+        $routes->get( 'equipamentos/template-xlsx',          'Admin\EquipmentController::templateXlsx');
+        $routes->post('equipamentos/importar',               'Admin\EquipmentController::importFile');
         $routes->post('equipamentos/(:num)/update',          'Admin\EquipmentController::update/$1');
         $routes->post('equipamentos/(:num)/delete',          'Admin\EquipmentController::delete/$1');
         $routes->post('equipamentos/(:num)/transferir',      'Admin\EquipmentController::transfer/$1');
@@ -101,10 +108,11 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('usuarios/(:num)/toggle-active',             'Admin\UsersController::toggleActive/$1');
 
         // Holidays
-        $routes->get( 'feriados',                      'Admin\HolidaysController::index');
-        $routes->post('feriados',                      'Admin\HolidaysController::store');
-        $routes->post('feriados/(:num)/update',        'Admin\HolidaysController::update/$1');
-        $routes->post('feriados/(:num)/delete',        'Admin\HolidaysController::delete/$1');
+        $routes->get( 'feriados',                          'Admin\HolidaysController::index');
+        $routes->post('feriados',                          'Admin\HolidaysController::store');
+        $routes->post('feriados/(:num)/update',            'Admin\HolidaysController::update/$1');
+        $routes->post('feriados/(:num)/delete',            'Admin\HolidaysController::delete/$1');
+        $routes->post('feriados/importar-api/(:num)',      'Admin\HolidaysController::importFromApi/$1');
 
         // Reports
         $routes->get('relatorios',                         'Admin\ReportsController::index');

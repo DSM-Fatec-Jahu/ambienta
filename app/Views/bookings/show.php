@@ -94,7 +94,7 @@ $statusLabel = match($booking['status']) {
           <thead>
             <tr>
               <th>Equipamento</th>
-              <th>Código</th>
+              <th>Patrimônio</th>
               <th class="text-center">Qtd.</th>
             </tr>
           </thead>

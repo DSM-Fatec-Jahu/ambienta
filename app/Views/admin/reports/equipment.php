@@ -116,7 +116,7 @@ $csvUrl = base_url('admin/relatorios/equipamentos/exportar-csv')
         <tr>
           <th>#</th>
           <th>Equipamento</th>
-          <th>Código</th>
+          <th>Patrimônio</th>
           <th class="text-center">Reservas</th>
           <th class="text-center">Qtd. total</th>
           <th>Demanda relativa</th>

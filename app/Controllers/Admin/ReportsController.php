@@ -45,7 +45,7 @@ class ReportsController extends BaseController
         // ── Top requesters ────────────────────────────────────────────────────
         $topUsers = $db->table('bookings bk')
             ->select('u.name AS user_name, u.email, COUNT(*) AS total')
-            ->join('users u', 'u.id = bk.user_id', 'left')
+            ->join('users u', 'u.id = bk.owner_id', 'left')
             ->where('bk.institution_id', $institutionId)
             ->where('bk.deleted_at IS NULL')
             ->where('bk.date >=', $dateFrom)

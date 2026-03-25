@@ -22,15 +22,43 @@ class AvailabilityController extends BaseController
             $date = date('Y-m-d');
         }
 
+        $buildingId     = (int) ($this->request->getGet('building_id') ?? 0);
+        $equipmentIds   = array_filter(array_map('intval', (array) ($this->request->getGet('equipment_ids') ?? [])));
+
+        // Buildings for filter dropdown
+        $buildings = $db->table('buildings')
+            ->select('id, name')
+            ->where('institution_id', $institutionId)
+            ->where('deleted_at IS NULL')
+            ->orderBy('name', 'ASC')
+            ->get()->getResultArray();
+
+        // Equipment for filter dropdown
+        $equipmentList = $db->table('equipment')
+            ->select('id, name')
+            ->where('institution_id', $institutionId)
+            ->where('is_active', 1)
+            ->where('deleted_at IS NULL')
+            ->orderBy('name', 'ASC')
+            ->get()->getResultArray();
+
         // All active rooms for the institution
-        $rooms = $db->table('rooms r')
-            ->select('r.id, r.name, r.code, r.capacity, b.name AS building_name')
+        $roomBuilder = $db->table('rooms r')
+            ->select('r.id, r.name, r.code, r.capacity, b.name AS building_name, r.building_id')
             ->join('buildings b', 'b.id = r.building_id', 'left')
             ->where('r.institution_id', $institutionId)
             ->where('r.is_active', 1)
-            ->where('r.deleted_at IS NULL')
-            ->orderBy('b.name ASC, r.name ASC')
-            ->get()->getResultArray();
+            ->where('r.deleted_at IS NULL');
+
+        if ($buildingId > 0) {
+            $roomBuilder->where('r.building_id', $buildingId);
+        }
+
+        foreach ($equipmentIds as $eqId) {
+            $roomBuilder->where("EXISTS (SELECT 1 FROM room_equipment re WHERE re.room_id = r.id AND re.equipment_id = {$eqId})");
+        }
+
+        $rooms = $roomBuilder->orderBy('b.name ASC, r.name ASC')->get()->getResultArray();
 
         // All bookings for the selected date
         $bookings = $db->table('bookings bk')
@@ -79,6 +107,10 @@ class AvailabilityController extends BaseController
             'dayClose'       => $dayClose,
             'isClosed'       => $isClosed,
             'totalBookings'  => count($bookings),
+            'buildings'      => $buildings,
+            'equipmentList'  => $equipmentList,
+            'buildingId'     => $buildingId,
+            'equipmentIds'   => $equipmentIds,
         ]));
     }
 }

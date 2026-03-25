@@ -7,12 +7,21 @@
     <h1 class="page-title">Equipamentos</h1>
     <p class="page-subtitle">Projetores, câmeras e demais recursos disponíveis para empréstimo</p>
   </div>
-  <button @click="$dispatch('open-equip-modal', { mode: 'create' })" class="btn-primary">
-    <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-    </svg>
-    Novo Equipamento
-  </button>
+  <div class="flex items-center gap-2">
+    <button @click="$dispatch('open-import-modal')" class="btn-secondary flex items-center gap-2">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/>
+      </svg>
+      Importar XLSX
+    </button>
+    <button @click="$dispatch('open-equip-modal', { mode: 'create' })" class="btn-primary">
+      <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
+      </svg>
+      Novo Equipamento
+    </button>
+  </div>
 </div>
 
 <div class="card overflow-hidden" x-data="equipPage()">
@@ -35,7 +44,7 @@
         <thead>
           <tr>
             <th>Nome</th>
-            <th>Código</th>
+            <th>Patrimônio</th>
             <th class="text-center">Qtd. total</th>
             <th>Descrição</th>
             <th>Status</th>
@@ -164,7 +173,7 @@
           </div>
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label for="e_code" class="form-label">Código / Patrimônio</label>
+              <label for="e_code" class="form-label">Patrimônio</label>
               <input type="text" id="e_code" name="code" x-model="form.code"
                      class="form-input" placeholder="Ex: PRJ-001" maxlength="20">
             </div>
@@ -357,6 +366,81 @@
     </div>
   </div>
 
+  <!-- ── Import Modal (XLSX / CSV) ───────────────────────────────── -->
+  <div x-show="csvOpen" class="modal-overlay" x-cloak
+       @open-import-modal.window="csvOpen = true; csvResult = null; csvFile = null"
+       x-transition:enter="transition-opacity duration-200"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition-opacity duration-150"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0">
+
+    <div class="modal-panel max-w-lg" @click.stop
+         x-transition:enter="transition duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+
+      <div class="modal-header">
+        <h3 class="text-sm font-semibold text-slate-900">Importar Equipamentos</h3>
+        <button @click="csvOpen = false" class="btn-ghost btn-sm p-1" aria-label="Fechar">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body space-y-4">
+        <p class="text-xs text-slate-500">
+          Envie um arquivo <strong>.xlsx</strong> (recomendado) ou <strong>.csv</strong> com as colunas:
+          <strong>nome</strong> (obrigatório), <strong>patrimonio</strong>,
+          <strong>descricao</strong> e <strong>quantidade</strong>.
+          Todos os equipamentos importados ficam ativos.
+        </p>
+
+        <a href="<?= base_url('admin/equipamentos/template-xlsx') ?>"
+           class="inline-flex items-center gap-1.5 text-xs text-primary hover:underline">
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+              d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+          </svg>
+          Baixar modelo XLSX
+        </a>
+
+        <div>
+          <label class="form-label form-label-required">Arquivo (.xlsx ou .csv)</label>
+          <input type="file" accept=".xlsx,.csv,.txt"
+                 @change="csvFile = $event.target.files[0]"
+                 class="form-input text-sm">
+        </div>
+
+        <!-- Result feedback -->
+        <template x-if="csvResult">
+          <div>
+            <div x-show="csvResult.imported > 0"
+                 class="rounded-md bg-emerald-50 border border-emerald-200 text-emerald-800 text-sm p-3 mb-2"
+                 x-text="csvResult.imported + ' equipamento(s) importado(s) com sucesso.'"></div>
+            <template x-if="csvResult.errors && csvResult.errors.length > 0">
+              <div class="rounded-md bg-red-50 border border-red-200 text-red-800 text-xs p-3 space-y-1">
+                <p class="font-semibold" x-text="'Linhas ignoradas (' + csvResult.errors.length + '):'"></p>
+                <template x-for="e in csvResult.errors" :key="e.row">
+                  <p x-text="'Linha ' + e.row + ': ' + e.message"></p>
+                </template>
+              </div>
+            </template>
+          </div>
+        </template>
+      </div>
+
+      <div class="modal-footer">
+        <button type="button" @click="csvOpen = false" class="btn-secondary">Fechar</button>
+        <button @click="uploadCsv()" :disabled="!csvFile || csvUploading" class="btn-primary">
+          <span x-text="csvUploading ? 'Importando...' : 'Importar'"></span>
+        </button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <?= $this->endSection() ?>
@@ -375,6 +459,12 @@ function equipPage() {
     transferOpen: false,
     transferId: null,
     transferName: '',
+
+    // csv import modal
+    csvOpen: false,
+    csvFile: null,
+    csvUploading: false,
+    csvResult: null,
 
     // history modal
     historyOpen: false,
@@ -427,6 +517,30 @@ function equipPage() {
       if (!dt) return '—';
       const d = new Date(dt.replace(' ', 'T'));
       return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    },
+
+    async uploadCsv() {
+      if (!this.csvFile) return;
+      this.csvUploading = true;
+      this.csvResult    = null;
+      const form = new FormData();
+      form.append('import_file', this.csvFile);
+      try {
+        const res  = await fetch('<?= base_url('admin/equipamentos/importar') ?>', {
+          method: 'POST',
+          headers: { 'X-CSRF-TOKEN': '<?= csrf_hash() ?>' },
+          body: form,
+        });
+        const data = await res.json();
+        this.csvResult = data;
+        if (res.ok && data.imported > 0) {
+          setTimeout(() => location.reload(), 1800);
+        }
+      } catch (e) {
+        this.csvResult = { imported: 0, errors: [{ row: '—', message: 'Erro de conexão.' }] };
+      } finally {
+        this.csvUploading = false;
+      }
     },
   }
 }
