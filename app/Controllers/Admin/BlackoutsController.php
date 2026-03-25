@@ -73,7 +73,7 @@ class BlackoutsController extends BaseController
             'reason'         => trim($this->request->getPost('reason') ?? '') ?: null,
             'starts_at'      => $startsAt,
             'ends_at'        => $endsAt,
-            'created_by'     => $user['id'],
+            'creator_id'     => $user['id'],
         ]);
 
         service('audit')->log('blackout.created', 'room_blackout', 0);

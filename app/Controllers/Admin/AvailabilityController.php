@@ -36,7 +36,7 @@ class AvailabilityController extends BaseController
         $bookings = $db->table('bookings bk')
             ->select('bk.id, bk.room_id, bk.title, bk.start_time, bk.end_time,
                       bk.status, bk.attendees_count, u.name AS user_name')
-            ->join('users u', 'u.id = bk.user_id', 'left')
+            ->join('users u', 'u.id = bk.owner_id', 'left')
             ->where('bk.institution_id', $institutionId)
             ->where('bk.date', $date)
             ->where('bk.deleted_at IS NULL')

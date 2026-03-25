@@ -17,7 +17,7 @@ class RoomBlackoutModel extends Model
         'reason',
         'starts_at',
         'ends_at',
-        'created_by',
+        'creator_id',
     ];
 
     protected $useTimestamps = true;
@@ -66,9 +66,9 @@ class RoomBlackoutModel extends Model
     public function forInstitution(int $institutionId): array
     {
         return $this->db->table('room_blackouts rb')
-            ->select('rb.*, r.name AS room_name, r.code AS room_code, u.name AS created_by_name')
-            ->join('rooms r',  'r.id = rb.room_id',   'left')
-            ->join('users u',  'u.id = rb.created_by', 'left')
+            ->select('rb.*, r.name AS room_name, r.code AS room_code, u.name AS creator_name')
+            ->join('rooms r',  'r.id = rb.room_id',    'left')
+            ->join('users u',  'u.id = rb.creator_id', 'left')
             ->where('rb.institution_id', $institutionId)
             ->orderBy('rb.starts_at', 'DESC')
             ->get()->getResultArray();

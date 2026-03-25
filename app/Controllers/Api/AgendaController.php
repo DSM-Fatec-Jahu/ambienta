@@ -135,7 +135,7 @@ class AgendaController extends BaseController
         $db = db_connect();
 
         $base = $db->table('bookings bk')
-            ->select('bk.id, bk.title, bk.date, bk.start_time, bk.end_time, bk.status, bk.user_id,
+            ->select('bk.id, bk.title, bk.date, bk.start_time, bk.end_time, bk.status, bk.owner_id,
                       r.name AS room_name, r.code AS room_code, b.name AS building_name')
             ->join('rooms r',     'r.id = bk.room_id',    'left')
             ->join('buildings b', 'b.id = r.building_id', 'left')
@@ -145,9 +145,9 @@ class AgendaController extends BaseController
             ->where('bk.date <',  $endDate)
             ->groupStart()
                 // Own bookings (any status) OR others' approved bookings
-                ->where('bk.user_id', $userId)
+                ->where('bk.owner_id', $userId)
                 ->orGroupStart()
-                    ->where('bk.user_id !=', $userId)
+                    ->where('bk.owner_id !=', $userId)
                     ->where('bk.status', 'approved')
                 ->groupEnd()
             ->groupEnd();
@@ -170,7 +170,7 @@ class AgendaController extends BaseController
         ];
 
         $events = array_map(function (array $row) use ($userId, $statusColors): array {
-            $isOwn = (int) $row['user_id'] === $userId;
+            $isOwn = (int) $row['owner_id'] === $userId;
             $color = $isOwn
                 ? ($statusColors[$row['status']] ?? '#64748B')
                 : '#1A8C5B';

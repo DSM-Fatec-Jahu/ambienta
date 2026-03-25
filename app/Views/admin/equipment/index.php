@@ -39,7 +39,7 @@
             <th class="text-center">Qtd. total</th>
             <th>Descrição</th>
             <th>Status</th>
-            <th class="w-24 text-right">Ações</th>
+            <th class="w-36 text-right">Ações</th>
           </tr>
         </thead>
         <tbody>
@@ -64,6 +64,27 @@
             </td>
             <td class="text-right">
               <div class="flex items-center justify-end gap-1">
+                <!-- Transfer history -->
+                <button
+                  @click="openHistory(<?= (int) $e['id'] ?>, <?= htmlspecialchars(json_encode($e['name']), ENT_QUOTES) ?>)"
+                  class="btn-ghost p-2 text-indigo-500 hover:bg-indigo-50 hover:text-indigo-600"
+                  aria-label="Histórico de movimentações">
+                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0"/>
+                  </svg>
+                </button>
+                <!-- Register transfer -->
+                <button
+                  @click="$dispatch('open-transfer-modal', { id: <?= (int) $e['id'] ?>, name: <?= htmlspecialchars(json_encode($e['name']), ENT_QUOTES) ?> })"
+                  class="btn-ghost p-2 text-teal-500 hover:bg-teal-50 hover:text-teal-600"
+                  aria-label="Registrar movimentação">
+                  <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                      d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"/>
+                  </svg>
+                </button>
+                <!-- Edit -->
                 <button
                   @click="$dispatch('open-equip-modal', <?= htmlspecialchars(json_encode([
                     'mode'           => 'edit',
@@ -81,6 +102,7 @@
                          m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                   </svg>
                 </button>
+                <!-- Delete -->
                 <form method="POST" action="<?= base_url('admin/equipamentos/' . $e['id'] . '/delete') ?>"
                       @submit.prevent="if(confirm('Excluir o equipamento «<?= esc($e['name']) ?>»?')) $el.submit()">
                   <?= csrf_field() ?>
@@ -105,7 +127,7 @@
     </div>
   <?php endif; ?>
 
-  <!-- ── Modal ──────────────────────────────────────────────────── -->
+  <!-- ── Create/Edit Modal ──────────────────────────────────────────── -->
   <div x-show="modalOpen" class="modal-overlay" x-cloak
        @open-equip-modal.window="openModal($event.detail)"
        x-transition:enter="transition-opacity duration-200"
@@ -175,6 +197,166 @@
     </div>
   </div>
 
+  <!-- ── Transfer Modal ────────────────────────────────────────────── -->
+  <div x-show="transferOpen" class="modal-overlay" x-cloak
+       @open-transfer-modal.window="openTransfer($event.detail)"
+       x-transition:enter="transition-opacity duration-200"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition-opacity duration-150"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0">
+
+    <div class="modal-panel max-w-lg" @click.stop
+         x-transition:enter="transition duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+
+      <div class="modal-header">
+        <h3 class="text-sm font-semibold text-slate-900">
+          Registrar Movimentação — <span class="text-primary" x-text="transferName"></span>
+        </h3>
+        <button @click="transferOpen = false" class="btn-ghost btn-sm p-1" aria-label="Fechar">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <form :action="`<?= base_url('admin/equipamentos/') ?>${transferId}/transferir`" method="POST">
+        <?= csrf_field() ?>
+
+        <div class="modal-body space-y-4">
+          <p class="text-xs text-slate-500">
+            Registre o movimento físico deste equipamento entre salas. Informe ao menos a sala de origem
+            ou a sala de destino.
+          </p>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label for="t_origin" class="form-label">Sala de origem</label>
+              <select id="t_origin" name="origin_room_id" class="form-input">
+                <option value="">— Nenhuma (entrada externa) —</option>
+                <?php foreach ($rooms as $r): ?>
+                  <option value="<?= $r['id'] ?>">
+                    <?= esc($r['name']) ?><?= !empty($r['code']) ? ' (' . esc($r['code']) . ')' : '' ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div>
+              <label for="t_dest" class="form-label">Sala de destino</label>
+              <select id="t_dest" name="destination_room_id" class="form-input">
+                <option value="">— Nenhuma (saída do sistema) —</option>
+                <?php foreach ($rooms as $r): ?>
+                  <option value="<?= $r['id'] ?>">
+                    <?= esc($r['name']) ?><?= !empty($r['code']) ? ' (' . esc($r['code']) . ')' : '' ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label for="t_qty" class="form-label form-label-required">Quantidade</label>
+            <input type="number" id="t_qty" name="quantity" value="1"
+                   class="form-input" min="1" max="9999" required>
+          </div>
+
+          <div>
+            <label for="t_notes" class="form-label">Observação</label>
+            <textarea id="t_notes" name="notes" rows="2"
+                      class="form-input resize-none"
+                      placeholder="Motivo, condição do equipamento, número de patrimônio..."></textarea>
+          </div>
+        </div>
+
+        <div class="modal-footer">
+          <button type="button" @click="transferOpen = false" class="btn-secondary">Cancelar</button>
+          <button type="submit" class="btn-primary">Registrar Movimentação</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ── History Modal ─────────────────────────────────────────────── -->
+  <div x-show="historyOpen" class="modal-overlay" x-cloak
+       x-transition:enter="transition-opacity duration-200"
+       x-transition:enter-start="opacity-0"
+       x-transition:enter-end="opacity-100"
+       x-transition:leave="transition-opacity duration-150"
+       x-transition:leave-start="opacity-100"
+       x-transition:leave-end="opacity-0">
+
+    <div class="modal-panel max-w-2xl" @click.stop
+         x-transition:enter="transition duration-200"
+         x-transition:enter-start="opacity-0 scale-95"
+         x-transition:enter-end="opacity-100 scale-100">
+
+      <div class="modal-header">
+        <h3 class="text-sm font-semibold text-slate-900">
+          Histórico de Movimentações — <span class="text-primary" x-text="historyName"></span>
+        </h3>
+        <button @click="historyOpen = false" class="btn-ghost btn-sm p-1" aria-label="Fechar">
+          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body p-0">
+        <template x-if="historyLoading">
+          <div class="p-6 text-center text-slate-400 text-sm">Carregando...</div>
+        </template>
+
+        <template x-if="!historyLoading && historyRows.length === 0">
+          <div class="p-6 text-center text-slate-400 text-sm">
+            Nenhuma movimentação registrada para este equipamento.
+          </div>
+        </template>
+
+        <template x-if="!historyLoading && historyRows.length > 0">
+          <div class="overflow-x-auto">
+            <table class="table-base">
+              <thead>
+                <tr>
+                  <th>Data</th>
+                  <th>Qtd.</th>
+                  <th>Origem</th>
+                  <th>Destino</th>
+                  <th>Responsável</th>
+                  <th>Observação</th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="row in historyRows" :key="row.id">
+                  <tr>
+                    <td class="whitespace-nowrap text-xs" x-text="formatDate(row.transferred_at)"></td>
+                    <td class="text-center font-semibold" x-text="row.quantity"></td>
+                    <td class="text-sm">
+                      <span x-show="row.origin_room_name" x-text="row.origin_room_name + (row.origin_room_code ? ' (' + row.origin_room_code + ')' : '')"></span>
+                      <span x-show="!row.origin_room_name" class="text-slate-400 italic">Externo</span>
+                    </td>
+                    <td class="text-sm">
+                      <span x-show="row.destination_room_name" x-text="row.destination_room_name + (row.destination_room_code ? ' (' + row.destination_room_code + ')' : '')"></span>
+                      <span x-show="!row.destination_room_name" class="text-slate-400 italic">Saída</span>
+                    </td>
+                    <td class="text-sm" x-text="row.handler_name || '—'"></td>
+                    <td class="text-xs text-slate-500 max-w-xs truncate" x-text="row.notes || '—'"></td>
+                  </tr>
+                </template>
+              </tbody>
+            </table>
+          </div>
+        </template>
+      </div>
+
+      <div class="modal-footer">
+        <button @click="historyOpen = false" class="btn-secondary">Fechar</button>
+      </div>
+    </div>
+  </div>
+
 </div>
 
 <?= $this->endSection() ?>
@@ -183,10 +365,22 @@
 <script>
 function equipPage() {
   return {
+    // create/edit modal
     modalOpen: false,
     mode: 'create',
     editId: null,
     form: { name: '', code: '', description: '', quantity_total: 1, is_active: true },
+
+    // transfer modal
+    transferOpen: false,
+    transferId: null,
+    transferName: '',
+
+    // history modal
+    historyOpen: false,
+    historyName: '',
+    historyLoading: false,
+    historyRows: [],
 
     openModal(detail) {
       this.mode = detail.mode;
@@ -204,7 +398,36 @@ function equipPage() {
         this.form = { name: '', code: '', description: '', quantity_total: 1, is_active: true };
       }
       this.modalOpen = true;
-    }
+    },
+
+    openTransfer(detail) {
+      this.transferId   = detail.id;
+      this.transferName = detail.name;
+      this.transferOpen = true;
+    },
+
+    async openHistory(id, name) {
+      this.historyName    = name;
+      this.historyOpen    = true;
+      this.historyLoading = true;
+      this.historyRows    = [];
+
+      try {
+        const res  = await fetch(`<?= base_url('admin/equipamentos/') ?>${id}/historico`);
+        const data = await res.json();
+        this.historyRows = data.history || [];
+      } catch (e) {
+        this.historyRows = [];
+      } finally {
+        this.historyLoading = false;
+      }
+    },
+
+    formatDate(dt) {
+      if (!dt) return '—';
+      const d = new Date(dt.replace(' ', 'T'));
+      return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    },
   }
 }
 </script>

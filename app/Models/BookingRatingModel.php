@@ -13,7 +13,7 @@ class BookingRatingModel extends Model
     protected $allowedFields = [
         'institution_id',
         'booking_id',
-        'user_id',
+        'rater_id',
         'rating',
         'comment',
     ];
@@ -24,7 +24,7 @@ class BookingRatingModel extends Model
 
     protected $validationRules = [
         'booking_id' => 'required|integer',
-        'user_id'    => 'required|integer',
+        'rater_id'   => 'required|integer',
         'rating'     => 'required|integer|greater_than[0]|less_than[6]',
     ];
 
@@ -87,7 +87,7 @@ class BookingRatingModel extends Model
             ->select('bk.id AS booking_id, bk.title, bk.date, bk.start_time, bk.end_time,
                       u.id AS user_id, u.name AS user_name, u.email AS user_email,
                       r.name AS room_name')
-            ->join('users u',  'u.id = bk.user_id',  'left')
+            ->join('users u',  'u.id = bk.owner_id',  'left')
             ->join('rooms r',  'r.id = bk.room_id',  'left')
             ->join('booking_ratings rt', 'rt.booking_id = bk.id', 'left')
             ->where('bk.institution_id', $institutionId)

@@ -12,7 +12,7 @@ class UserInviteModel extends Model
 
     protected $allowedFields = [
         'institution_id',
-        'invited_by',
+        'inviter_id',
         'email',
         'role',
         'token',
@@ -59,7 +59,7 @@ class UserInviteModel extends Model
 
         $id = $this->insert([
             'institution_id' => $institutionId,
-            'invited_by'     => $invitedBy,
+            'inviter_id'     => $invitedBy,
             'email'          => $email,
             'role'           => $role,
             'token'          => $token,
@@ -81,8 +81,8 @@ class UserInviteModel extends Model
     public function pendingForInstitution(int $institutionId): array
     {
         return $this->db->table('user_invites ui')
-            ->select('ui.*, u.name AS invited_by_name')
-            ->join('users u', 'u.id = ui.invited_by', 'left')
+            ->select('ui.*, u.name AS inviter_name')
+            ->join('users u', 'u.id = ui.inviter_id', 'left')
             ->where('ui.institution_id', $institutionId)
             ->where('ui.accepted_at', null)
             ->where('ui.expires_at >', date('Y-m-d H:i:s'))

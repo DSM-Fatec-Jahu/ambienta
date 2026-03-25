@@ -256,7 +256,7 @@ $statusLabel = match($booking['status']) {
         ?>
         <?php foreach ($bookingComments as $c):
           $authorInitial = strtoupper(substr($c['author_name'] ?? 'U', 0, 1));
-          $isMe = ($c['user_id'] == ($currentUser['id'] ?? 0));
+          $isMe = ($c['author_id'] == ($currentUser['id'] ?? 0));
         ?>
         <div class="px-4 py-3 flex gap-3">
           <!-- Avatar -->

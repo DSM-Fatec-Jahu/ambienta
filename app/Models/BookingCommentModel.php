@@ -13,7 +13,7 @@ class BookingCommentModel extends Model
     protected $allowedFields = [
         'institution_id',
         'booking_id',
-        'user_id',
+        'author_id',
         'body',
     ];
 
@@ -28,7 +28,7 @@ class BookingCommentModel extends Model
     {
         return $this->db->table('booking_comments bc')
             ->select('bc.*, u.name AS author_name, u.avatar_path, u.role AS author_role')
-            ->join('users u', 'u.id = bc.user_id', 'left')
+            ->join('users u', 'u.id = bc.author_id', 'left')
             ->where('bc.booking_id', $bookingId)
             ->orderBy('bc.created_at', 'ASC')
             ->get()->getResultArray();

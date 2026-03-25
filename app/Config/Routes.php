@@ -86,10 +86,12 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('ambientes/(:num)/manutencao',       'Admin\RoomsController::setMaintenance/$1');
 
         // Equipment / Equipamentos
-        $routes->get( 'equipamentos',                  'Admin\EquipmentController::index');
-        $routes->post('equipamentos',                  'Admin\EquipmentController::store');
-        $routes->post('equipamentos/(:num)/update',    'Admin\EquipmentController::update/$1');
-        $routes->post('equipamentos/(:num)/delete',    'Admin\EquipmentController::delete/$1');
+        $routes->get( 'equipamentos',                        'Admin\EquipmentController::index');
+        $routes->post('equipamentos',                        'Admin\EquipmentController::store');
+        $routes->post('equipamentos/(:num)/update',          'Admin\EquipmentController::update/$1');
+        $routes->post('equipamentos/(:num)/delete',          'Admin\EquipmentController::delete/$1');
+        $routes->post('equipamentos/(:num)/transferir',      'Admin\EquipmentController::transfer/$1');
+        $routes->get( 'equipamentos/(:num)/historico',       'Admin\EquipmentController::history/$1');
 
         // Users
         $routes->get( 'usuarios',                                  'Admin\UsersController::index');

@@ -80,7 +80,7 @@
                 <?= esc($item['reason'] ?? '—') ?>
               </td>
               <td class="text-sm text-slate-500">
-                <?= esc($item['created_by_name'] ?? '—') ?>
+                <?= esc($item['creator_name'] ?? '—') ?>
               </td>
               <td class="text-right">
                 <form method="POST"

@@ -271,8 +271,8 @@ class BookingsController extends BaseController
 
         $bookingId = $this->bookings->insert([
             'institution_id'     => $institutionId,
-            'user_id'            => $bookingUserId,
-            'booked_by_user_id'  => $bookedByUserId,
+            'owner_id'           => $bookingUserId,
+            'creator_id'         => $bookedByUserId,
             'room_id'            => $roomId,
             'title'              => $this->request->getPost('title'),
             'description'        => $this->request->getPost('description') ?: null,
@@ -331,8 +331,8 @@ class BookingsController extends BaseController
                 if (!$isHoliday && !$hasConflict) {
                     $this->bookings->insert([
                         'institution_id'      => $institutionId,
-                        'user_id'             => $bookingUserId,
-                        'booked_by_user_id'   => $bookedByUserId,
+                        'owner_id'            => $bookingUserId,
+                        'creator_id'          => $bookedByUserId,
                         'room_id'             => $roomId,
                         'title'               => $title,
                         'description'         => $desc,
@@ -375,7 +375,7 @@ class BookingsController extends BaseController
         $booking = $this->bookings->find($id);
 
         $isStaff = $user['role'] !== 'role_requester';
-        $isOwner = $booking && (int) $booking['user_id'] === (int) $user['id'];
+        $isOwner = $booking && (int) $booking['owner_id'] === (int) $user['id'];
 
         if (!$booking
             || (!$isOwner && !$isStaff)
@@ -387,9 +387,9 @@ class BookingsController extends BaseController
         $room = $this->rooms->find($booking['room_id']);
 
         $bookedBy = null;
-        if (!empty($booking['booked_by_user_id'])) {
+        if (!empty($booking['creator_id'])) {
             $userModel = new \App\Models\UserModel();
-            $bookedBy = $userModel->find((int) $booking['booked_by_user_id']);
+            $bookedBy = $userModel->find((int) $booking['creator_id']);
         }
 
         $equipItems = db_connect()->table('booking_equipment be')
@@ -463,7 +463,7 @@ class BookingsController extends BaseController
         $booking = $this->bookings->find($id);
 
         $isStaff = $user['role'] !== 'role_requester';
-        $isOwner = $booking && (int) $booking['user_id'] === (int) $user['id'];
+        $isOwner = $booking && (int) $booking['owner_id'] === (int) $user['id'];
 
         if (!$booking
             || (!$isOwner && !$isStaff)
@@ -485,7 +485,7 @@ class BookingsController extends BaseController
         $this->comments->insert([
             'institution_id' => $booking['institution_id'],
             'booking_id'     => $id,
-            'user_id'        => $user['id'],
+            'author_id'      => $user['id'],
             'body'           => $body,
         ]);
 
@@ -502,7 +502,7 @@ class BookingsController extends BaseController
         $user    = $this->currentUser();
         $booking = $this->bookings->find($id);
 
-        if (!$booking || $booking['user_id'] != $user['id']) {
+        if (!$booking || $booking['owner_id'] != $user['id']) {
             return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
         }
 
@@ -528,7 +528,7 @@ class BookingsController extends BaseController
         $user    = $this->currentUser();
         $booking = $this->bookings->find($id);
 
-        if (!$booking || $booking['user_id'] != $user['id']) {
+        if (!$booking || $booking['owner_id'] != $user['id']) {
             return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
         }
 
@@ -642,7 +642,7 @@ class BookingsController extends BaseController
         $user    = $this->currentUser();
         $booking = $this->bookings->find($id);
 
-        if (!$booking || $booking['user_id'] != $user['id']) {
+        if (!$booking || $booking['owner_id'] != $user['id']) {
             return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
         }
 
@@ -665,7 +665,7 @@ class BookingsController extends BaseController
         $this->ratings->insert([
             'institution_id' => $this->institution['id'] ?? 0,
             'booking_id'     => $id,
-            'user_id'        => $user['id'],
+            'rater_id'       => $user['id'],
             'rating'         => $rating,
             'comment'        => trim($this->request->getPost('comment') ?? '') ?: null,
         ]);
@@ -735,7 +735,7 @@ class BookingsController extends BaseController
         $user    = $this->currentUser();
         $booking = $this->bookings->find($id);
 
-        if (!$booking || $booking['user_id'] != $user['id']) {
+        if (!$booking || $booking['owner_id'] != $user['id']) {
             return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
         }
 
@@ -776,7 +776,7 @@ class BookingsController extends BaseController
             ->select('bk.*, r.name AS room_name, b.name AS building_name, u.name AS user_name')
             ->join('rooms r',     'r.id = bk.room_id',    'left')
             ->join('buildings b', 'b.id = r.building_id', 'left')
-            ->join('users u',     'u.id = bk.user_id',   'left')
+            ->join('users u',     'u.id = bk.owner_id',  'left')
             ->where('bk.institution_id', $institutionId)
             ->where('bk.status', 'approved')
             ->where('bk.date <=', date('Y-m-d'))
@@ -804,7 +804,7 @@ class BookingsController extends BaseController
 
         $this->bookings->update($id, [
             'status'       => 'approved',
-            'reviewed_by'  => $reviewer['id'],
+            'reviewer_id'  => $reviewer['id'],
             'reviewed_at'  => date('Y-m-d H:i:s'),
             'review_notes' => $this->request->getPost('notes') ?: null,
         ]);
@@ -812,7 +812,7 @@ class BookingsController extends BaseController
         service('audit')->log('booking.approved', 'booking', $id);
 
         $notifBooking = $this->bookings->find($id);
-        $notifUser    = (new \App\Models\UserModel())->find($notifBooking['user_id']);
+        $notifUser    = (new \App\Models\UserModel())->find($notifBooking['owner_id']);
         $notifRoom    = $this->rooms->find($notifBooking['room_id']);
         service('notification')->bookingApproved($notifBooking, $notifUser, $notifRoom, $reviewer);
 
@@ -838,7 +838,7 @@ class BookingsController extends BaseController
 
         $this->bookings->update($id, [
             'status'       => 'rejected',
-            'reviewed_by'  => $reviewer['id'],
+            'reviewer_id'  => $reviewer['id'],
             'reviewed_at'  => date('Y-m-d H:i:s'),
             'review_notes' => $notes,
         ]);
@@ -846,7 +846,7 @@ class BookingsController extends BaseController
         service('audit')->log('booking.rejected', 'booking', $id);
 
         $notifBooking = $this->bookings->find($id);
-        $notifUser    = (new \App\Models\UserModel())->find($notifBooking['user_id']);
+        $notifUser    = (new \App\Models\UserModel())->find($notifBooking['owner_id']);
         $notifRoom    = $this->rooms->find($notifBooking['room_id']);
         service('notification')->bookingRejected($notifBooking, $notifUser, $notifRoom, $notes);
 
@@ -873,7 +873,7 @@ class BookingsController extends BaseController
 
             $this->bookings->update($id, [
                 'status'      => 'approved',
-                'reviewed_by' => $reviewer['id'],
+                'reviewer_id' => $reviewer['id'],
                 'reviewed_at' => date('Y-m-d H:i:s'),
                 'review_notes'=> null,
             ]);
@@ -914,7 +914,7 @@ class BookingsController extends BaseController
 
             $this->bookings->update($id, [
                 'status'       => 'rejected',
-                'reviewed_by'  => $reviewer['id'],
+                'reviewer_id'  => $reviewer['id'],
                 'reviewed_at'  => date('Y-m-d H:i:s'),
                 'review_notes' => $notes,
             ]);
@@ -956,7 +956,7 @@ class BookingsController extends BaseController
         $user    = $this->currentUser();
         $booking = $this->bookings->find($id);
 
-        if (!$booking || $booking['user_id'] != $user['id']) {
+        if (!$booking || $booking['owner_id'] != $user['id']) {
             return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
         }
 
@@ -1094,7 +1094,7 @@ class BookingsController extends BaseController
         $user    = $this->currentUser();
         $booking = $this->bookings->find($id);
 
-        if (!$booking || $booking['user_id'] != $user['id']) {
+        if (!$booking || $booking['owner_id'] != $user['id']) {
             return redirect()->to(base_url('reservas'))->with('error', 'Reserva não encontrada.');
         }
 

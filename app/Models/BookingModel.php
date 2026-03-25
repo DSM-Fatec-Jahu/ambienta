@@ -13,7 +13,7 @@ class BookingModel extends Model
 
     protected $allowedFields = [
         'institution_id',
-        'user_id',
+        'owner_id',
         'room_id',
         'title',
         'description',
@@ -22,7 +22,7 @@ class BookingModel extends Model
         'end_time',
         'attendees_count',
         'status',
-        'reviewed_by',
+        'reviewer_id',
         'reviewed_at',
         'review_notes',
         'cancelled_at',
@@ -32,7 +32,7 @@ class BookingModel extends Model
         'recurrence_parent_id',
         'checkin_at',
         'qr_token',
-        'booked_by_user_id',
+        'creator_id',
     ];
 
     protected $useTimestamps = true;
@@ -61,8 +61,8 @@ class BookingModel extends Model
                       u.name AS reviewer_name')
             ->join('rooms r', 'r.id = bk.room_id', 'left')
             ->join('buildings b', 'b.id = r.building_id', 'left')
-            ->join('users u', 'u.id = bk.reviewed_by', 'left')
-            ->where('bk.user_id', $userId)
+            ->join('users u', 'u.id = bk.reviewer_id', 'left')
+            ->where('bk.owner_id', $userId)
             ->where('bk.deleted_at IS NULL');
 
         if ($status) {
@@ -82,7 +82,7 @@ class BookingModel extends Model
                       u.name AS user_name, u.email AS user_email, u.role AS user_role')
             ->join('rooms r', 'r.id = bk.room_id', 'left')
             ->join('buildings b', 'b.id = r.building_id', 'left')
-            ->join('users u', 'u.id = bk.user_id', 'left')
+            ->join('users u', 'u.id = bk.owner_id', 'left')
             ->where('bk.institution_id', $institutionId)
             ->where('bk.status', 'pending')
             ->where('bk.deleted_at IS NULL')
@@ -134,7 +134,7 @@ class BookingModel extends Model
         $now   = date('H:i:s');
 
         $myToday = $this->db->table('bookings')
-            ->where('user_id', $userId)
+            ->where('owner_id', $userId)
             ->where('date', $today)
             ->whereIn('status', ['pending', 'approved'])
             ->where('deleted_at IS NULL')
@@ -143,7 +143,7 @@ class BookingModel extends Model
         $next = $this->db->table('bookings bk')
             ->select('bk.date, bk.start_time, r.name AS room_name')
             ->join('rooms r', 'r.id = bk.room_id', 'left')
-            ->where('bk.user_id', $userId)
+            ->where('bk.owner_id', $userId)
             ->where('bk.status', 'approved')
             ->where('bk.deleted_at IS NULL')
             ->groupStart()
@@ -172,7 +172,7 @@ class BookingModel extends Model
         $sunday = date('Y-m-d', strtotime('sunday this week', strtotime($date)));
 
         return (int) $this->db->table('bookings')
-            ->where('user_id', $userId)
+            ->where('owner_id', $userId)
             ->where('deleted_at IS NULL')
             ->whereIn('status', ['pending', 'approved'])
             ->where('date >=', $monday)
@@ -342,12 +342,12 @@ class BookingModel extends Model
                       SUM(bk.status = "rejected")  AS total_rejected,
                       SUM(bk.status = "cancelled") AS total_cancelled,
                       SUM(bk.status = "absent")    AS total_absent')
-            ->join('users u', 'u.id = bk.user_id', 'left')
+            ->join('users u', 'u.id = bk.owner_id', 'left')
             ->where('bk.institution_id', $institutionId)
             ->where('bk.deleted_at IS NULL')
             ->where('bk.date >=', $dateFrom)
             ->where('bk.date <=', $dateTo)
-            ->groupBy('bk.user_id')
+            ->groupBy('bk.owner_id')
             ->orderBy('total', 'DESC')
             ->get()->getResultArray();
     }

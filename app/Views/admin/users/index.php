@@ -201,7 +201,7 @@
                 <?= esc($rolesList[$inv['role']] ?? $inv['role']) ?>
               </span>
             </td>
-            <td class="text-slate-600"><?= esc($inv['invited_by_name'] ?? '—') ?></td>
+            <td class="text-slate-600"><?= esc($inv['inviter_name'] ?? '—') ?></td>
             <td class="text-xs text-amber-600">
               <?php if ($expiresIn > 0): ?>
                 <?= $expiresIn ?>h restante<?= $expiresIn !== 1 ? 's' : '' ?>

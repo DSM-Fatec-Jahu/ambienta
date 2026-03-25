@@ -6,7 +6,7 @@ use CodeIgniter\Model;
 
 class WaitlistModel extends Model
 {
-    protected $table         = 'booking_waitlist';
+    protected $table         = 'booking_waitlists';
     protected $primaryKey    = 'id';
     protected $returnType    = 'array';
     protected $useSoftDeletes = false;
@@ -18,7 +18,7 @@ class WaitlistModel extends Model
         'date',
         'starts_at',
         'ends_at',
-        'user_id',
+        'waiter_id',
         'notes',
         'notified_at',
         'created_at',
@@ -43,11 +43,11 @@ class WaitlistModel extends Model
     public function forUser(int $userId): array
     {
         return db_connect()
-            ->table('booking_waitlist wl')
+            ->table('booking_waitlists wl')
             ->select('wl.*, r.name AS room_name, r.code AS room_code, b.name AS building_name')
             ->join('rooms r',     'r.id = wl.room_id',    'left')
             ->join('buildings b', 'b.id = r.building_id', 'left')
-            ->where('wl.user_id', $userId)
+            ->where('wl.waiter_id', $userId)
             ->where('wl.date >=', date('Y-m-d'))
             ->orderBy('wl.date ASC, wl.starts_at ASC')
             ->get()->getResultArray();
@@ -62,7 +62,7 @@ class WaitlistModel extends Model
                     ->where('date', $date)
                     ->where('starts_at', $startsAt)
                     ->where('ends_at', $endsAt)
-                    ->where('user_id', $userId)
+                    ->where('waiter_id', $userId)
                     ->countAllResults() > 0;
     }
 
@@ -84,7 +84,7 @@ class WaitlistModel extends Model
             'date'           => $date,
             'starts_at'      => $startsAt,
             'ends_at'        => $endsAt,
-            'user_id'        => $userId,
+            'waiter_id'      => $userId,
             'notes'          => $notes ?: null,
             'created_at'     => date('Y-m-d H:i:s'),
         ]);
@@ -96,7 +96,7 @@ class WaitlistModel extends Model
     public function removeEntry(int $id, int $userId): bool
     {
         return $this->where('id', $id)
-                    ->where('user_id', $userId)
+                    ->where('waiter_id', $userId)
                     ->delete() !== false;
     }
 
@@ -133,7 +133,7 @@ class WaitlistModel extends Model
         $this->update($next['id'], ['notified_at' => date('Y-m-d H:i:s')]);
 
         // Load the waiting user
-        $user = (new \App\Models\UserModel())->find((int) $next['user_id']);
+        $user = (new \App\Models\UserModel())->find((int) $next['waiter_id']);
         if (!$user) {
             return;
         }

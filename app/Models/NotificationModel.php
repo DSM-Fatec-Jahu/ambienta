@@ -14,7 +14,7 @@ class NotificationModel extends Model
 
     protected $allowedFields = [
         'institution_id',
-        'user_id',
+        'recipient_id',
         'type',
         'title',
         'body',
@@ -36,7 +36,7 @@ class NotificationModel extends Model
     ): int {
         return (int) $this->insert([
             'institution_id' => $institutionId,
-            'user_id'        => $userId,
+            'recipient_id'   => $userId,
             'type'           => $type,
             'title'          => $title,
             'body'           => $body ?: null,
@@ -50,7 +50,7 @@ class NotificationModel extends Model
      */
     public function forUser(int $userId, int $limit = 20): array
     {
-        return $this->where('user_id', $userId)
+        return $this->where('recipient_id', $userId)
                     ->orderBy('created_at', 'DESC')
                     ->limit($limit)
                     ->findAll();
@@ -61,7 +61,7 @@ class NotificationModel extends Model
      */
     public function unreadCount(int $userId): int
     {
-        return (int) $this->where('user_id', $userId)
+        return (int) $this->where('recipient_id', $userId)
                           ->where('read_at IS NULL')
                           ->countAllResults();
     }
@@ -72,7 +72,7 @@ class NotificationModel extends Model
     public function markRead(int $id, int $userId): bool
     {
         return $this->where('id', $id)
-                    ->where('user_id', $userId)
+                    ->where('recipient_id', $userId)
                     ->where('read_at IS NULL')
                     ->set(['read_at' => date('Y-m-d H:i:s')])
                     ->update() !== false;
@@ -83,7 +83,7 @@ class NotificationModel extends Model
      */
     public function markAllRead(int $userId): void
     {
-        $this->where('user_id', $userId)
+        $this->where('recipient_id', $userId)
              ->where('read_at IS NULL')
              ->set(['read_at' => date('Y-m-d H:i:s')])
              ->update();
