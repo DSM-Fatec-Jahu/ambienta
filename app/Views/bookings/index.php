@@ -26,6 +26,19 @@
   </div>
 </div>
 
+<?php if (!empty($overdueReturnCount) && $overdueReturnCount > 0): ?>
+<div class="mb-4 flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+  <svg class="mt-0.5 h-4 w-4 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+      d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+  </svg>
+  <span>
+    Você tem <strong><?= $overdueReturnCount ?> recurso(s)</strong> com devolução pendente e prazo vencido.
+    Regularize para poder criar novas reservas.
+  </span>
+</div>
+<?php endif; ?>
+
 <!-- Status filter tabs -->
 <div class="flex items-center gap-1 mb-4 bg-white border border-slate-200 rounded-xl p-1 w-fit">
   <?php

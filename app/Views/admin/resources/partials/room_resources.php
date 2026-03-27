@@ -101,14 +101,14 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="item in items" :key="item.resource_id">
+                <template x-for="item in items" :key="item.room_resource_id">
                   <tr>
                     <td class="font-medium text-slate-900" x-text="item.name"></td>
                     <td>
                       <span x-show="item.code" class="badge-primary text-xs" x-text="item.code"></span>
                       <span x-show="!item.code" class="text-slate-300">—</span>
                     </td>
-                    <td class="text-center font-semibold text-slate-700" x-text="item.quantity"></td>
+                    <td class="text-center font-semibold text-slate-700" x-text="item.allocated_quantity"></td>
                     <td class="text-slate-600 text-sm" x-text="item.allocated_by_name ?? '—'"></td>
                     <td class="text-slate-500 text-xs whitespace-nowrap"
                         x-text="item.allocated_at ? formatDate(item.allocated_at) : '—'"></td>

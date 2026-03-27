@@ -78,6 +78,35 @@
         </div>
       </div>
 
+      <!-- Resource settings — RN-R08 -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="text-sm font-semibold text-slate-900">Recursos</h2>
+        </div>
+        <div class="card-body space-y-4">
+
+          <div class="flex items-start gap-3">
+            <input type="hidden" name="resource_return_block_requester" value="0">
+            <input type="checkbox" id="s_block_requester" name="resource_return_block_requester" value="1"
+                   <?= !empty($settings['resources']['resource_return_block_requester']) ? 'checked' : '' ?>
+                   class="mt-0.5 rounded border-slate-300 text-primary">
+            <div>
+              <label for="s_block_requester" class="text-sm font-medium text-slate-700">Bloquear solicitante inadimplente</label>
+              <p class="text-xs text-slate-400">Quando ativo, solicitantes com devolução de recurso vencida ficam impedidos de criar novas reservas até regularizar as pendências.</p>
+            </div>
+          </div>
+
+          <div class="max-w-xs">
+            <label for="s_return_deadline" class="form-label">Prazo de devolução (horas)</label>
+            <input type="number" id="s_return_deadline" name="resource_return_deadline_hours"
+                   value="<?= (int)($settings['resources']['resource_return_deadline_hours'] ?? 1) ?>"
+                   class="form-input" min="1" max="720">
+            <p class="form-hint">Horas após o encerramento da reserva antes de considerar a devolução como vencida e disparar notificações. Padrão: 1 hora.</p>
+          </div>
+
+        </div>
+      </div>
+
       <!-- Booking settings -->
       <div class="card">
         <div class="card-header">

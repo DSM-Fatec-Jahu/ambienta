@@ -390,6 +390,17 @@ class ResourceController extends BaseController
             return [false, ['row' => $rowNum, 'message' => "Patrimônio excede 50 caracteres na linha com nome \"{$name}\"."]];
         }
 
+        // Duplicate patrimônio check — catches both DB duplicates and within-file duplicates
+        if ($code) {
+            $exists = $this->resources->where('institution_id', $institutionId)
+                                      ->where('code', $code)
+                                      ->withDeleted()
+                                      ->first();
+            if ($exists) {
+                return [false, ['row' => $rowNum, 'message' => "Patrimônio \"{$code}\" já existe para o recurso \"{$exists['name']}\"."]];
+            }
+        }
+
         // RN-R01: patrimônio preenchido → quantidade deve ser 1
         $rawQty = trim($assoc['quantidade'] ?? '');
         $qty    = $rawQty !== '' ? (int) $rawQty : ($code ? 1 : 1);

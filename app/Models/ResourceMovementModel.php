@@ -62,9 +62,9 @@ class ResourceMovementModel extends Model
                 'rm.notes',
                 'rm.moved_at',
                 'orig.name        AS origin_room_name',
-                'orig.abbreviation AS origin_room_abbr',
+                'orig.code         AS origin_room_abbr',
                 'dest.name        AS destination_room_name',
-                'dest.abbreviation AS destination_room_abbr',
+                'dest.code        AS destination_room_abbr',
                 'u.name           AS handler_name',
                 'cu.name          AS confirmed_by_name',
                 'bk.id            AS booking_ref',
@@ -98,6 +98,106 @@ class ResourceMovementModel extends Model
             'origin_room_id'      => null,
             'destination_room_id' => $destinationRoomId,
             'handler_id'          => $handlerId,
+            'notes'               => $notes,
+            'moved_at'            => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Records a booking_checkout movement (resource approved for a booking).
+     */
+    public function recordBookingCheckout(
+        int    $institutionId,
+        int    $resourceId,
+        int    $bookingId,
+        int    $quantity,
+        int    $handlerId,
+        string $notes = null
+    ): void {
+        $this->insert([
+            'institution_id'      => $institutionId,
+            'resource_id'         => $resourceId,
+            'movement_type'       => self::TYPE_BOOKING_CHECKOUT,
+            'quantity'            => $quantity,
+            'origin_room_id'      => null,
+            'destination_room_id' => null,
+            'booking_id'          => $bookingId,
+            'handler_id'          => $handlerId,
+            'notes'               => $notes,
+            'moved_at'            => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Records a booking_return movement (requester or technician registers return).
+     */
+    public function recordBookingReturn(
+        int    $institutionId,
+        int    $resourceId,
+        int    $bookingId,
+        int    $quantity,
+        int    $handlerId,
+        string $notes = null
+    ): void {
+        $this->insert([
+            'institution_id'      => $institutionId,
+            'resource_id'         => $resourceId,
+            'movement_type'       => self::TYPE_BOOKING_RETURN,
+            'quantity'            => $quantity,
+            'origin_room_id'      => null,
+            'destination_room_id' => null,
+            'booking_id'          => $bookingId,
+            'handler_id'          => $handlerId,
+            'notes'               => $notes,
+            'moved_at'            => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Records a return_confirmed movement (technician confirms physical return).
+     */
+    public function recordReturnConfirmed(
+        int    $institutionId,
+        int    $resourceId,
+        int    $bookingId,
+        int    $quantity,
+        int    $confirmedById,
+        string $notes = null
+    ): void {
+        $this->insert([
+            'institution_id'      => $institutionId,
+            'resource_id'         => $resourceId,
+            'movement_type'       => self::TYPE_RETURN_CONFIRMED,
+            'quantity'            => $quantity,
+            'origin_room_id'      => null,
+            'destination_room_id' => null,
+            'booking_id'          => $bookingId,
+            'confirmed_by_id'     => $confirmedById,
+            'notes'               => $notes,
+            'moved_at'            => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Records a return_rejected movement (technician rejects the return claim).
+     */
+    public function recordReturnRejected(
+        int    $institutionId,
+        int    $resourceId,
+        int    $bookingId,
+        int    $quantity,
+        int    $confirmedById,
+        string $notes = null
+    ): void {
+        $this->insert([
+            'institution_id'      => $institutionId,
+            'resource_id'         => $resourceId,
+            'movement_type'       => self::TYPE_RETURN_REJECTED,
+            'quantity'            => $quantity,
+            'origin_room_id'      => null,
+            'destination_room_id' => null,
+            'booking_id'          => $bookingId,
+            'confirmed_by_id'     => $confirmedById,
             'notes'               => $notes,
             'moved_at'            => date('Y-m-d H:i:s'),
         ]);

@@ -7,15 +7,15 @@
 <?= $this->section('content') ?>
 
 <?php
-$csvUrl = base_url('admin/relatorios/equipamentos/exportar-csv')
+$csvUrl = base_url('admin/relatorios/recursos/exportar-csv')
     . '?date_from=' . urlencode($dateFrom)
     . '&date_to='   . urlencode($dateTo);
 ?>
 
 <div class="page-header">
   <div>
-    <h1 class="page-title">Uso de Equipamentos</h1>
-    <p class="page-subtitle">Equipamentos mais requisitados por reservas no período</p>
+    <h1 class="page-title">Uso de Recursos</h1>
+    <p class="page-subtitle">Recursos mais requisitados por reservas no período</p>
   </div>
   <?php if (!empty($rows)): ?>
   <a href="<?= $csvUrl ?>" class="btn-secondary btn-sm">
@@ -29,7 +29,7 @@ $csvUrl = base_url('admin/relatorios/equipamentos/exportar-csv')
 </div>
 
 <!-- Date filter -->
-<form method="GET" action="<?= base_url('admin/relatorios/equipamentos') ?>" class="card mb-4">
+<form method="GET" action="<?= base_url('admin/relatorios/recursos') ?>" class="card mb-4">
   <div class="card-body">
     <div class="flex flex-wrap items-end gap-3">
       <div>
@@ -48,8 +48,8 @@ $csvUrl = base_url('admin/relatorios/equipamentos/exportar-csv')
 <?php if (empty($rows)): ?>
   <div class="card">
     <div class="empty-state">
-      <p class="empty-state-title">Nenhum equipamento utilizado no período</p>
-      <p class="empty-state-description">Nenhuma reserva com equipamento foi encontrada entre <?= date('d/m/Y', strtotime($dateFrom)) ?> e <?= date('d/m/Y', strtotime($dateTo)) ?>.</p>
+      <p class="empty-state-title">Nenhum recurso utilizado no período</p>
+      <p class="empty-state-description">Nenhuma reserva com recurso foi encontrada entre <?= date('d/m/Y', strtotime($dateFrom)) ?> e <?= date('d/m/Y', strtotime($dateTo)) ?>.</p>
     </div>
   </div>
 <?php else: ?>
@@ -67,13 +67,13 @@ $csvUrl = base_url('admin/relatorios/equipamentos/exportar-csv')
     <div class="card">
       <div class="card-body text-center">
         <p class="text-2xl font-bold text-primary"><?= $totalEquipTypes ?></p>
-        <p class="text-xs text-slate-500 mt-0.5">Tipos de equipamento</p>
+        <p class="text-xs text-slate-500 mt-0.5">Tipos de recurso</p>
       </div>
     </div>
     <div class="card">
       <div class="card-body text-center">
         <p class="text-2xl font-bold text-slate-800"><?= number_format($totalBookings) ?></p>
-        <p class="text-xs text-slate-500 mt-0.5">Reservas com equipamento</p>
+        <p class="text-xs text-slate-500 mt-0.5">Reservas com recurso</p>
       </div>
     </div>
     <div class="card">
@@ -95,7 +95,7 @@ $csvUrl = base_url('admin/relatorios/equipamentos/exportar-csv')
   <!-- Bar chart -->
   <div class="card">
     <div class="card-header">
-      <h2 class="text-sm font-semibold text-slate-900">Reservas por equipamento</h2>
+      <h2 class="text-sm font-semibold text-slate-900">Reservas por recurso</h2>
     </div>
     <div class="card-body">
       <canvas id="equipChart" style="max-height:240px"></canvas>
@@ -108,14 +108,14 @@ $csvUrl = base_url('admin/relatorios/equipamentos/exportar-csv')
 <div class="card overflow-hidden">
   <div class="card-header">
     <h2 class="text-sm font-semibold text-slate-900">Detalhamento</h2>
-    <span class="text-xs text-slate-400"><?= $totalEquipTypes ?> equipamento(s)</span>
+    <span class="text-xs text-slate-400"><?= $totalEquipTypes ?> recurso(s)</span>
   </div>
   <div class="overflow-x-auto">
     <table class="table-base">
       <thead>
         <tr>
           <th>#</th>
-          <th>Equipamento</th>
+          <th>Recurso</th>
           <th>Patrimônio</th>
           <th class="text-center">Reservas</th>
           <th class="text-center">Qtd. total</th>

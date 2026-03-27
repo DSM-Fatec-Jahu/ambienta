@@ -104,7 +104,7 @@
     <?php if (!empty($equipment)): ?>
     <div class="card">
       <div class="card-body">
-        <h2 class="font-semibold text-slate-900 mb-3">Equipamentos disponíveis</h2>
+        <h2 class="font-semibold text-slate-900 mb-3">Recursos disponíveis</h2>
         <ul class="space-y-2">
           <?php foreach ($equipment as $eq): ?>
           <li class="flex items-start gap-2 text-sm">

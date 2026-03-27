@@ -105,7 +105,11 @@ class RoomModel extends Model
         }
 
         if (!empty($equipmentIds)) {
-            $q->where('r.allows_equipment_lending', 1);
+            foreach ($equipmentIds as $resourceId) {
+                $q->whereIn('r.id', function ($b) use ($resourceId) {
+                    $b->select('room_id')->from('room_resources')->where('resource_id', $resourceId);
+                });
+            }
         }
 
         return $q->orderBy('b.name, r.name')->get()->getResultArray();

@@ -85,26 +85,125 @@ $statusLabel = match($booking['status']) {
     </div>
 
     <?php if (!empty($equipItems)): ?>
-    <div class="card">
+    <?php
+    // RN-R05: is current user the booking owner?
+    $isOwner = (int) ($booking['owner_id'] ?? 0) === (int) ($currentUser['id'] ?? 0);
+    // Count pending returns for banner (RN-R08)
+    $pendingReturnCount = 0;
+    foreach ($equipItems as $_e) {
+        if ($_e['status'] === 'approved' && ($bookingEnded ?? false)) {
+            $pendingReturnCount++;
+        }
+    }
+    ?>
+
+    <?php if ($pendingReturnCount > 0 && $isOwner): ?>
+    <div class="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 mb-0">
+      <svg class="mt-0.5 h-4 w-4 shrink-0 text-amber-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+          d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+      </svg>
+      <span>
+        Você tem <strong><?= $pendingReturnCount ?> recurso(s)</strong> pendente(s) de devolução.
+        Registre abaixo.
+      </span>
+    </div>
+    <?php endif; ?>
+
+    <div class="card" x-data="{ returnId: null }">
       <div class="card-header">
-        <h2 class="text-sm font-semibold text-slate-900">Equipamentos solicitados</h2>
+        <h2 class="text-sm font-semibold text-slate-900">Recursos solicitados</h2>
       </div>
       <div class="overflow-x-auto">
         <table class="table-base">
           <thead>
             <tr>
-              <th>Equipamento</th>
+              <th>Recurso</th>
               <th>Patrimônio</th>
-              <th class="text-center">Qtd.</th>
+              <th class="text-center">Qtd</th>
+              <th>Status</th>
+              <?php if ($isOwner || $isStaff): ?>
+              <th class="text-center w-36">Ação</th>
+              <?php endif; ?>
             </tr>
           </thead>
           <tbody>
-            <?php foreach ($equipItems as $e): ?>
+            <?php foreach ($equipItems as $e):
+              [$badgeCls, $statusLabel] = match($e['status']) {
+                'approved'         => ['badge-success',  'Aprovado'],
+                'rejected'         => ['badge-error',    'Recusado'],
+                'returned'         => ['badge-warning',  'Devolução registrada'],
+                'return_confirmed' => ['badge-success',  'Devolução confirmada'],
+                default            => ['badge-pending',  'Pendente'],
+              };
+              // RN-R05: show return button when approved + booking ended + (owner or staff)
+              $canReturn = $e['status'] === 'approved'
+                && ($bookingEnded ?? false)
+                && ($isOwner || $isStaff);
+            ?>
             <tr>
-              <td class="font-medium"><?= esc($e['equipment_name']) ?></td>
-              <td><?= esc($e['code'] ?? '—') ?></td>
-              <td class="text-center"><?= $e['quantity'] ?></td>
+              <td class="font-medium"><?= esc($e['resource_name']) ?></td>
+              <td><?= esc($e['resource_code'] ?? '—') ?></td>
+              <td class="text-center"><?= (int) $e['quantity'] ?></td>
+              <td>
+                <span class="<?= $badgeCls ?> text-xs"><?= $statusLabel ?></span>
+                <?php if ($e['status'] === 'rejected' && !empty($e['rejection_note'])): ?>
+                  <p class="text-xs text-slate-400 mt-0.5"><?= esc($e['rejection_note']) ?></p>
+                <?php elseif ($e['status'] === 'approved' && !empty($e['rejection_note'])): ?>
+                  <!-- RN-R07: return was rejected by technician; status reverted to approved -->
+                  <p class="text-xs text-amber-600 mt-0.5">
+                    <svg class="inline w-3 h-3 mr-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M12 9v2m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/>
+                    </svg>
+                    Devolução anterior rejeitada: <?= esc($e['rejection_note']) ?>
+                  </p>
+                <?php endif; ?>
+              </td>
+              <?php if ($isOwner || $isStaff): ?>
+              <td class="text-center">
+                <?php if ($canReturn): ?>
+                  <button type="button"
+                          class="btn-xs btn-secondary whitespace-nowrap"
+                          @click="returnId = returnId === <?= $e['id'] ?> ? null : <?= $e['id'] ?>">
+                    <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                        d="M3 10h10a8 8 0 018 8v2M3 10l6 6m-6-6l6-6"/>
+                    </svg>
+                    Devolver
+                  </button>
+                <?php elseif ($e['status'] === 'returned'): ?>
+                  <span class="text-xs text-slate-400">Aguard. confirmação</span>
+                <?php else: ?>
+                  <span class="text-xs text-slate-300">—</span>
+                <?php endif; ?>
+              </td>
+              <?php endif; ?>
             </tr>
+
+            <?php if ($canReturn): ?>
+            <!-- Inline return form — RN-R05 -->
+            <tr x-show="returnId === <?= $e['id'] ?>" x-cloak class="bg-teal-50">
+              <td colspan="<?= ($isOwner || $isStaff) ? 5 : 4 ?>" class="px-4 py-3">
+                <form method="POST"
+                      action="<?= base_url('reservas/recursos/' . $e['id'] . '/devolver') ?>"
+                      class="flex items-end gap-3">
+                  <?= csrf_field() ?>
+                  <div class="flex-1">
+                    <label class="form-label text-teal-800">Observações (opcional)</label>
+                    <input type="text"
+                           name="notes"
+                           maxlength="500"
+                           placeholder="Estado do recurso, observações de entrega…"
+                           class="form-input border-teal-300 focus:ring-teal-400">
+                  </div>
+                  <button type="submit" class="btn-success">Confirmar devolução</button>
+                  <button type="button" class="btn-secondary" @click="returnId = null">Cancelar</button>
+                </form>
+              </td>
+            </tr>
+            <?php endif; ?>
+
             <?php endforeach; ?>
           </tbody>
         </table>

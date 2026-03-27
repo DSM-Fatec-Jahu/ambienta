@@ -154,7 +154,7 @@ class ResourceModel extends Model
     public function withCurrentLocation(int $institutionId): array
     {
         return $this->db->table('resources r')
-            ->select('r.*, rm.name AS current_room_name, rm.abbreviation AS current_room_abbr,
+            ->select('r.*, rm.name AS current_room_name, rm.code AS current_room_abbr,
                       rr.quantity AS allocated_quantity')
             ->join('room_resources rr', 'rr.resource_id = r.id', 'left')
             ->join('rooms rm',          'rm.id = rr.room_id',     'left')

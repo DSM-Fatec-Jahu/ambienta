@@ -28,7 +28,7 @@
         </select>
       </div>
       <div>
-        <label for="filter-equipment-name" class="form-label">Equipamento (nome)</label>
+        <label for="filter-equipment-name" class="form-label">Recurso (nome)</label>
         <input type="text" id="filter-equipment-name" class="form-input" placeholder="Ex: projetor">
       </div>
       <div>

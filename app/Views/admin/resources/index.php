@@ -5,7 +5,7 @@
 <div class="page-header">
   <div>
     <h1 class="page-title">Recursos</h1>
-    <p class="page-subtitle">Equipamentos, dispositivos e demais itens gerenciados pela instituição</p>
+    <p class="page-subtitle">Recursos, dispositivos e demais itens gerenciados pela instituição</p>
   </div>
   <div class="flex items-center gap-2">
     <button @click="$dispatch('open-import-modal')" class="btn-secondary flex items-center gap-2">

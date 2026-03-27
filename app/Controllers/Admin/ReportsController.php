@@ -279,7 +279,7 @@ class ReportsController extends BaseController
         $rows = $bookingModel->equipmentUsage($institutionId, $dateFrom, $dateTo);
 
         return view('admin/reports/equipment', $this->viewData([
-            'pageTitle' => 'Uso de Equipamentos',
+            'pageTitle' => 'Uso de Recursos',
             'dateFrom'  => $dateFrom,
             'dateTo'    => $dateTo,
             'rows'      => $rows,
@@ -301,7 +301,7 @@ class ReportsController extends BaseController
         $rows = $bookingModel->equipmentUsage($institutionId, $dateFrom, $dateTo);
 
         $csv = fopen('php://temp', 'r+');
-        fputcsv($csv, ['Equipamento', 'Código', 'Reservas com uso', 'Qtd. total solicitada'], ';');
+        fputcsv($csv, ['Recurso', 'Código', 'Reservas com uso', 'Qtd. total solicitada'], ';');
 
         foreach ($rows as $r) {
             fputcsv($csv, [
@@ -318,7 +318,7 @@ class ReportsController extends BaseController
 
         return $this->response
             ->setHeader('Content-Type', 'text/csv; charset=UTF-8')
-            ->setHeader('Content-Disposition', 'attachment; filename="equipamentos_' . $dateFrom . '_' . $dateTo . '.csv"')
+            ->setHeader('Content-Disposition', 'attachment; filename="recursos_' . $dateFrom . '_' . $dateTo . '.csv"')
             ->setBody("\xEF\xBB\xBF" . $content);
     }
 

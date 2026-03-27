@@ -323,7 +323,7 @@
               <input type="checkbox" id="r_equip" name="allows_equipment_lending" value="1"
                      x-model="form.allows_equipment_lending"
                      class="rounded border-slate-300 text-primary">
-              <label for="r_equip" class="text-sm text-slate-700">Permite empréstimo de equipamentos</label>
+              <label for="r_equip" class="text-sm text-slate-700">Permite empréstimo de recursos</label>
             </div>
 
             <div class="flex items-center gap-3">

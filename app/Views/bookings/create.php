@@ -141,7 +141,7 @@
     </div>
 
     <!-- Equipment filter panel -->
-    <div x-show="availableEquipment.length > 0" x-cloak class="mb-5">
+    <div x-show="filterResources.length > 0" x-cloak class="mb-5">
       <div class="card">
         <div class="card-body">
           <div class="flex flex-wrap items-center gap-3 mb-3">
@@ -150,7 +150,7 @@
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                   d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2a1 1 0 01-.293.707L13 13.414V19a1 1 0 01-.553.894l-4 2A1 1 0 017 21v-7.586L3.293 6.707A1 1 0 013 6V4z"/>
               </svg>
-              <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtrar por equipamento</h3>
+              <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtrar por recurso</h3>
             </div>
             <span x-show="equipmentFilter.length > 0" x-cloak
                   class="badge-primary text-2xs"
@@ -164,23 +164,17 @@
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <template x-for="eq in availableEquipment" :key="eq.id">
+            <template x-for="eq in filterResources" :key="eq.id">
               <label :class="equipmentFilter.includes(eq.id)
                                ? 'ring-2 ring-primary bg-primary-light text-primary'
-                               : eq.available_qty === 0
-                                 ? 'ring-1 ring-slate-100 bg-slate-50 opacity-50 cursor-not-allowed'
-                                 : 'ring-1 ring-slate-200 hover:ring-primary/50 cursor-pointer'"
+                               : 'ring-1 ring-slate-200 hover:ring-primary/50 cursor-pointer'"
                      class="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all select-none">
                 <input type="checkbox"
                        :value="eq.id"
-                       :disabled="eq.available_qty === 0"
                        x-model="equipmentFilter"
                        @change="searchRooms()"
                        class="sr-only">
                 <span class="text-sm font-medium" x-text="eq.name"></span>
-                <span :class="eq.available_qty > 0 ? 'bg-emerald-100 text-success' : 'bg-slate-100 text-slate-400'"
-                      class="text-2xs font-semibold px-1.5 py-0.5 rounded-full whitespace-nowrap"
-                      x-text="eq.available_qty + ' disp.'"></span>
               </label>
             </template>
           </div>
@@ -190,7 +184,7 @@
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
             </svg>
-            Exibindo apenas salas com empréstimo de equipamentos habilitado
+            Exibindo apenas salas que possuem os recursos selecionados
           </p>
         </div>
       </div>
@@ -206,7 +200,7 @@
         <p class="empty-state-title">Nenhuma sala disponível</p>
         <p class="empty-state-description"
            x-text="equipmentFilter.length > 0
-             ? 'Nenhuma sala com empréstimo de equipamentos disponível para este filtro. Tente remover alguns itens do filtro.'
+             ? 'Nenhuma sala com empréstimo de recursos disponível para este filtro. Tente remover alguns itens do filtro.'
              : 'Todos os ambientes estão ocupados neste horário. Tente outro dia ou intervalo de tempo.'">
         </p>
         <div class="flex gap-2 mt-4">
@@ -253,16 +247,16 @@
                 <span x-text="room.capacity + ' pessoas'"></span>
               </span>
 
-              <!-- Equipment lending badge + view button -->
-              <div x-show="room.allows_equipment_lending" class="flex items-center gap-2">
+              <!-- Room resources badge + view button -->
+              <div x-show="room.resources && room.resources.length > 0" class="flex items-center gap-2">
                 <span class="text-xs text-success flex items-center gap-1">
                   <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
                   </svg>
-                  Emp. equipamentos
+                  Recursos
                 </span>
                 <button type="button"
-                        @click.stop="equipModalOpen = true"
+                        @click.stop="modalRoom = room; equipModalOpen = true"
                         class="text-xs text-blue-500 hover:text-blue-600 flex items-center gap-0.5 font-medium">
                   <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
@@ -309,7 +303,7 @@
 
       <div class="flex items-start justify-between px-5 pt-5 pb-3">
         <div>
-          <h3 class="text-sm font-semibold text-slate-900">Equipamentos disponíveis</h3>
+          <h3 class="text-sm font-semibold text-slate-900">Recursos disponíveis</h3>
           <p class="text-xs text-slate-400 mt-0.5">
             <span x-text="formatDate(searchDate)"></span> · <span x-text="searchStart + ' – ' + searchEnd"></span>
           </p>
@@ -323,19 +317,18 @@
       </div>
 
       <div class="px-5 pb-2 max-h-72 overflow-y-auto">
-        <template x-if="availableEquipment.length === 0">
-          <p class="text-sm text-slate-400 text-center py-6">Nenhum equipamento cadastrado.</p>
+        <template x-if="!modalRoom || modalRoom.resources.length === 0">
+          <p class="text-sm text-slate-400 text-center py-6">Nenhum recurso alocado neste ambiente.</p>
         </template>
         <div class="divide-y divide-slate-100">
-          <template x-for="eq in availableEquipment" :key="eq.id">
+          <template x-for="eq in (modalRoom ? modalRoom.resources : [])" :key="eq.id">
             <div class="flex items-center justify-between py-2.5">
               <div class="min-w-0">
                 <p class="text-sm font-medium text-slate-900 truncate" x-text="eq.name"></p>
                 <p class="text-xs text-slate-400" x-show="eq.code" x-text="eq.code"></p>
               </div>
-              <span :class="eq.available_qty > 0 ? 'badge-approved' : 'badge-cancelled'"
-                    class="ml-3 flex-shrink-0"
-                    x-text="eq.available_qty > 0 ? eq.available_qty + ' disp.' : 'Esgotado'"></span>
+              <span class="badge-approved ml-3 flex-shrink-0"
+                    x-text="eq.allocated_quantity + ' un.'"></span>
             </div>
           </template>
         </div>
@@ -343,7 +336,7 @@
 
       <div class="px-5 py-3 border-t border-slate-100 bg-slate-50 rounded-b-2xl">
         <p class="text-xs text-slate-400">
-          Equipamentos são recursos da instituição disponíveis em salas com empréstimo habilitado.
+          Recursos fixos alocados neste ambiente.
         </p>
       </div>
     </div>
@@ -351,7 +344,7 @@
 
   <!-- ══ STEP 3: Booking form ════════════════════════════════════════════════ -->
   <div x-show="step === 3" x-cloak>
-  <form method="POST" action="<?= base_url('reservas') ?>" @submit="return validateForm()">
+  <form method="POST" action="<?= base_url('reservas') ?>">
     <?= csrf_field() ?>
 
     <!-- Hidden fields from wizard steps -->
@@ -492,42 +485,38 @@
         </div>
         <?php endif; ?>
 
-        <!-- Equipment (only if room allows) -->
-        <?php if (!empty($equipment)): ?>
-        <div class="card" x-show="selectedRoom && selectedRoom.allows_equipment_lending" x-cloak>
+        <!-- Recursos alocados na sala selecionada -->
+        <div class="card" x-show="selectedRoom && selectedRoom.resources && selectedRoom.resources.length > 0" x-cloak>
           <div class="card-header">
-            <h2 class="text-sm font-semibold text-slate-900">Equipamentos <span class="text-slate-400 font-normal">(opcional)</span></h2>
+            <h2 class="text-sm font-semibold text-slate-900">Recursos do ambiente <span class="text-slate-400 font-normal">(opcional)</span></h2>
           </div>
           <div class="card-body">
-            <p class="form-hint mb-3">Selecione os equipamentos que deseja utilizar durante a reserva.</p>
+            <p class="form-hint mb-3">Selecione os recursos deste ambiente que deseja utilizar na reserva.</p>
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <?php foreach ($equipment as $eq): ?>
-              <label x-data="{ checked: <?= in_array($eq['id'], (array) old('equipment_ids', [])) ? 'true' : 'false' ?> }"
-                     :class="checked ? 'ring-2 ring-primary bg-primary-light' : 'ring-1 ring-slate-200'"
-                     class="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all">
-                <input type="checkbox" name="equipment_ids[]" value="<?= $eq['id'] ?>"
-                       class="mt-0.5 rounded border-slate-300 text-primary"
-                       x-model="checked">
-                <div class="flex-1 min-w-0">
-                  <p class="text-sm font-medium text-slate-900"><?= esc($eq['name']) ?></p>
-                  <?php if ($eq['code']): ?>
-                    <p class="text-xs text-slate-400"><?= esc($eq['code']) ?></p>
-                  <?php endif; ?>
-                  <div x-show="checked" x-cloak class="mt-2">
-                    <label class="text-xs text-slate-500">Quantidade:</label>
-                    <input type="number" name="equipment_qty_<?= $eq['id'] ?>"
-                           min="1" max="<?= (int) $eq['quantity_total'] ?>"
-                           value="<?= (int) old('equipment_qty_' . $eq['id'], 1) ?>"
-                           class="form-input py-1 text-xs w-20 mt-0.5">
+              <template x-for="eq in (selectedRoom ? selectedRoom.resources : [])" :key="eq.id">
+                <label x-data="{ checked: false, qty: 1 }"
+                       :class="checked ? 'ring-2 ring-primary bg-primary-light' : 'ring-1 ring-slate-200'"
+                       class="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all">
+                  <input type="checkbox" name="equipment_ids[]" :value="eq.id"
+                         class="mt-0.5 rounded border-slate-300 text-primary"
+                         x-model="checked">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-slate-900" x-text="eq.name"></p>
+                    <p class="text-xs text-slate-400" x-show="eq.code" x-text="eq.code"></p>
+                    <div x-show="checked" x-cloak class="mt-2">
+                      <label class="text-xs text-slate-500">Quantidade:</label>
+                      <input type="number" :name="'equipment_qty_' + eq.id"
+                             min="1" :max="eq.allocated_quantity"
+                             x-model.number="qty"
+                             class="form-input py-1 text-xs w-20 mt-0.5">
+                    </div>
                   </div>
-                </div>
-                <span class="text-xs text-slate-400 whitespace-nowrap">Disp: <?= (int) $eq['quantity_total'] ?></span>
-              </label>
-              <?php endforeach; ?>
+                  <span class="text-xs text-slate-400 whitespace-nowrap" x-text="eq.allocated_quantity + ' un.'"></span>
+                </label>
+              </template>
             </div>
           </div>
         </div>
-        <?php endif; ?>
 
       </div><!-- /left col -->
 
@@ -605,10 +594,12 @@ function bookingWizard() {
 
     availableRooms:     [],
     availableEquipment: [],
+    filterResources:    [],
     equipmentFilter:    [],
     loading:            false,
     searchError:        '',
     equipModalOpen:     false,
+    modalRoom:          null,
 
     selectedRoom: restore?.selectedRoom ?? null,
     attendees:    <?= old('attendees_count', 1) ?>,
@@ -635,14 +626,16 @@ function bookingWizard() {
         const res  = await fetch(`<?= base_url('reservas/salas-disponiveis') ?>?${params}`);
         const data = await res.json();
 
-        this.availableRooms     = data.rooms      || [];
-        this.availableEquipment = data.equipment  || [];
+        this.availableRooms     = data.rooms           || [];
+        this.availableEquipment = data.equipment       || [];
+        this.filterResources    = data.room_resources  || [];
+        this.modalRoom          = null;
 
-        // Remove from filter any item that no longer has stock
-        this.equipmentFilter = this.equipmentFilter.filter(id => {
-          const eq = this.availableEquipment.find(e => e.id === id);
-          return eq && eq.available_qty > 0;
-        });
+        // Remove from filter any resource no longer present in available rooms
+        // eslint-disable-next-line eqeqeq — intentional loose equality (checkbox value is string, API id is int)
+        this.equipmentFilter = this.equipmentFilter.filter(id =>
+          this.filterResources.some(r => r.id == id)
+        );
 
         if (this.step !== 2) this.step = 2;
       } catch {

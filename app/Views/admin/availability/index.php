@@ -38,7 +38,7 @@
   <!-- Equipment filter -->
   <?php if (!empty($equipmentList)): ?>
   <div x-data="{ open: false }" class="relative">
-    <label class="form-label">Equipamentos</label>
+    <label class="form-label">Recursos</label>
     <button type="button" @click="open = !open"
             class="form-input w-52 text-left flex items-center justify-between">
       <span class="truncate text-sm">
@@ -46,7 +46,7 @@
           $eqNames = array_filter(array_map(function($e) use ($equipmentIds) {
             return in_array($e['id'], $equipmentIds) ? esc($e['name']) : null;
           }, $equipmentList));
-          echo !empty($eqNames) ? implode(', ', $eqNames) : 'Todos os equipamentos';
+          echo !empty($eqNames) ? implode(', ', $eqNames) : 'Todos os recursos';
         ?>
       </span>
       <svg class="w-4 h-4 shrink-0 ml-1 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">

@@ -38,6 +38,10 @@ class SettingsController extends BaseController
         $domains    = array_filter(array_map('trim', explode(',', $rawDomains)));
         $current['auth']['sso_allowed_domains']  = array_values($domains);
 
+        // ── Resource settings — RN-R08 ────────────────────────────
+        $current['resources']['resource_return_deadline_hours']  = max(1, (int) $this->request->getPost('resource_return_deadline_hours'));
+        $current['resources']['resource_return_block_requester'] = (bool) $this->request->getPost('resource_return_block_requester');
+
         // ── Booking settings ───────────────────────────────────────
         $current['booking']['max_days_ahead']        = max(1, (int) $this->request->getPost('max_days_ahead'));
         $current['booking']['min_duration_min']      = max(15, (int) $this->request->getPost('min_duration_min'));

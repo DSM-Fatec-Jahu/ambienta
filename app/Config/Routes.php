@@ -133,7 +133,10 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get('relatorios/exportar-pdf',            'Admin\ReportsController::exportPdf');
         $routes->get('relatorios/ocupacao',                'Admin\ReportsController::occupancy');
         $routes->get('relatorios/ocupacao/exportar-csv',   'Admin\ReportsController::exportOccupancyCsv');
-        $routes->get('relatorios/equipamentos',            'Admin\ReportsController::equipment');
+        $routes->get('relatorios/recursos',                  'Admin\ReportsController::equipment');
+        $routes->get('relatorios/recursos/exportar-csv',     'Admin\ReportsController::exportEquipmentCsv');
+        // Legacy aliases — mantém URLs anteriores funcionando
+        $routes->get('relatorios/equipamentos',              'Admin\ReportsController::equipment');
         $routes->get('relatorios/equipamentos/exportar-csv', 'Admin\ReportsController::exportEquipmentCsv');
         $routes->get('relatorios/usuarios',                  'Admin\ReportsController::userActivity');
         $routes->get('relatorios/usuarios/exportar-csv',     'Admin\ReportsController::exportUserActivityCsv');
@@ -153,11 +156,22 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->get( 'horarios', 'Admin\OperatingHoursController::index');
         $routes->post('horarios', 'Admin\OperatingHoursController::update');
 
+        // Booking Resources — Sprint R4 (RN-R04): approval panel
+        // Sprint R5 (RN-R05/RN-R07): return confirmation panel
+        $routes->get( 'recursos-reservas',                              'Admin\BookingResourceController::index');
+        $routes->post('recursos-reservas/(:num)/aprovar',               'Admin\BookingResourceController::approve/$1');
+        $routes->post('recursos-reservas/(:num)/recusar',               'Admin\BookingResourceController::reject/$1');
+        $routes->post('recursos-reservas/(:num)/confirmar-devolucao',   'Admin\BookingResourceController::confirmReturn/$1');
+        $routes->post('recursos-reservas/(:num)/rejeitar-devolucao',    'Admin\BookingResourceController::rejectReturn/$1');
+
         // Blackouts
         $routes->get( 'bloqueios',                     'Admin\BlackoutsController::index');
         $routes->post('bloqueios',                     'Admin\BlackoutsController::store');
         $routes->post('bloqueios/(:num)/delete',       'Admin\BlackoutsController::delete/$1');
     });
+
+    // ── Booking Resource return — RN-R05: accessible to requester AND staff ──
+    $routes->post('reservas/recursos/(:num)/devolver', 'Admin\BookingResourceController::returnResource/$1');
 
     // ── Waitlist (must be before :num routes) ─────────────────────────────────
     $routes->get( 'reservas/lista-espera',              'BookingsController::myWaitlist');

@@ -48,7 +48,7 @@
           Gerencie ambientes com simplicidade
         </h1>
         <p class="text-slate-400 text-sm leading-relaxed mb-10">
-          Reservas, equipamentos e aprovações em um só lugar — acessível para toda a sua equipe.
+          Reservas, recursos e aprovações em um só lugar — acessível para toda a sua equipe.
         </p>
 
         <!-- Feature list -->

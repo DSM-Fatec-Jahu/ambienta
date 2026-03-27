@@ -274,6 +274,315 @@ class NotificationService
         return $this->send($user['email'], $subject, $body);
     }
 
+    // ── Resource request notifications (Sprint R4 — RN-R04) ──────────────────
+
+    /**
+     * Notifica todos os técnicos ativos da instituição sobre nova requisição de recurso.
+     * RF-R06 (parcial) — disparado ao criar a reserva com recursos solicitados.
+     */
+    public function resourceRequested(
+        array $booking,
+        array $requester,
+        array $resource,
+        int   $quantity
+    ): void {
+        $url = $this->appUrl . '/admin/recursos-reservas';
+        $resourceLabel = $resource['name']
+            . (!empty($resource['code']) ? ' (' . $resource['code'] . ')' : '');
+        $title   = "Nova requisição de recurso pendente";
+        $message = "{$requester['name']} solicitou {$quantity}× {$resourceLabel} na reserva \"{$booking['title']}\".";
+
+        $technicians = db_connect()->table('users')
+            ->where('institution_id', $booking['institution_id'])
+            ->where('is_active', 1)
+            ->whereIn('role', ['role_technician', 'role_coordinator', 'role_vice_director', 'role_director', 'role_admin'])
+            ->get()->getResultArray();
+
+        foreach ($technicians as $tech) {
+            try {
+                $this->saveNotification($tech, 'booking_resource.requested', $title, $message, $url);
+            } catch (\Throwable $e) {
+                log_message('error', '[NotificationService] resourceRequested DB error: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Notifica o solicitante que sua requisição de recurso foi aprovada.
+     * RF-R06 — disparado pelo técnico ao aprovar (RN-R04).
+     */
+    public function resourceApproved(
+        array $booking,
+        array $requester,
+        array $resource,
+        int   $quantity
+    ): bool {
+        $resourceLabel = $resource['name']
+            . (!empty($resource['code']) ? ' (' . $resource['code'] . ')' : '');
+        $subject = "[{$this->appName}] Recurso aprovado — {$resourceLabel}";
+        $url     = $this->appUrl . '/reservas/' . $booking['id'];
+        $message = "{$quantity}× {$resourceLabel} foi aprovado para sua reserva \"{$booking['title']}\".";
+
+        $this->saveNotification(
+            $requester,
+            'booking_resource.approved',
+            "Recurso aprovado",
+            $message,
+            $url
+        );
+
+        if (!$this->isConfigured()) {
+            return false;
+        }
+
+        $body = "<p>Olá, {$requester['name']}.</p>"
+            . "<p>O recurso <strong>" . htmlspecialchars($resourceLabel, ENT_QUOTES) . "</strong> (qtd: {$quantity}) "
+            . "foi <strong>aprovado</strong> para sua reserva "
+            . "<strong>" . htmlspecialchars($booking['title'], ENT_QUOTES) . "</strong>.</p>"
+            . "<p><a href=\"{$url}\">Ver reserva</a></p>";
+
+        return $this->send($requester['email'], $subject, $body);
+    }
+
+    /**
+     * Notifica o solicitante que sua requisição de recurso foi rejeitada.
+     * RF-R06 / RN-R04 — motivo obrigatório informado pelo técnico.
+     */
+    public function resourceRejected(
+        array  $booking,
+        array  $requester,
+        array  $resource,
+        int    $quantity,
+        string $reason
+    ): bool {
+        $resourceLabel = $resource['name']
+            . (!empty($resource['code']) ? ' (' . $resource['code'] . ')' : '');
+        $subject = "[{$this->appName}] Recurso recusado — {$resourceLabel}";
+        $url     = $this->appUrl . '/reservas/' . $booking['id'];
+        $message = "{$quantity}× {$resourceLabel} foi recusado para sua reserva \"{$booking['title']}\". Motivo: {$reason}";
+
+        $this->saveNotification(
+            $requester,
+            'booking_resource.rejected',
+            "Recurso recusado",
+            $message,
+            $url
+        );
+
+        if (!$this->isConfigured()) {
+            return false;
+        }
+
+        $body = "<p>Olá, {$requester['name']}.</p>"
+            . "<p>O recurso <strong>" . htmlspecialchars($resourceLabel, ENT_QUOTES) . "</strong> (qtd: {$quantity}) "
+            . "foi <strong>recusado</strong> para sua reserva "
+            . "<strong>" . htmlspecialchars($booking['title'], ENT_QUOTES) . "</strong>.</p>"
+            . "<p><strong>Motivo:</strong> " . htmlspecialchars($reason, ENT_QUOTES) . "</p>"
+            . "<p><a href=\"{$url}\">Ver reserva</a></p>";
+
+        return $this->send($requester['email'], $subject, $body);
+    }
+
+    // ── Resource return notifications (Sprint R5 — RN-R05/RN-R07) ───────────
+
+    /**
+     * Notifica todos os técnicos ativos da instituição que uma devolução foi registrada
+     * e aguarda confirmação física. RF-R06 / RN-R07.
+     */
+    public function resourceReturnRegistered(
+        array $booking,
+        array $returnedBy,
+        array $resource,
+        int   $quantity
+    ): void {
+        $url = $this->appUrl . '/admin/recursos-reservas';
+        $resourceLabel = $resource['name']
+            . (!empty($resource['code']) ? ' (' . $resource['code'] . ')' : '');
+        $title   = "Devolução registrada — confirmar recebimento";
+        $message = "{$returnedBy['name']} registrou a devolução de {$quantity}× {$resourceLabel} "
+            . "da reserva \"{$booking['title']}\". Confirme o recebimento físico.";
+
+        $technicians = db_connect()->table('users')
+            ->where('institution_id', $booking['institution_id'])
+            ->where('is_active', 1)
+            ->whereIn('role', ['role_technician', 'role_coordinator', 'role_vice_director', 'role_director', 'role_admin'])
+            ->get()->getResultArray();
+
+        foreach ($technicians as $tech) {
+            try {
+                $this->saveNotification($tech, 'booking_resource.returned', $title, $message, $url);
+            } catch (\Throwable $e) {
+                log_message('error', '[NotificationService] resourceReturnRegistered DB error: ' . $e->getMessage());
+            }
+        }
+    }
+
+    /**
+     * Notifica o solicitante que a devolução foi confirmada pelo técnico.
+     * RF-R06 / RN-R07.
+     */
+    public function returnConfirmed(
+        array $booking,
+        array $requester,
+        array $resource,
+        int   $quantity
+    ): bool {
+        $resourceLabel = $resource['name']
+            . (!empty($resource['code']) ? ' (' . $resource['code'] . ')' : '');
+        $subject = "[{$this->appName}] Devolução confirmada — {$resourceLabel}";
+        $url     = $this->appUrl . '/reservas/' . $booking['id'];
+        $message = "Devolução de {$quantity}× {$resourceLabel} confirmada pelo técnico "
+            . "para a reserva \"{$booking['title']}\".";
+
+        $this->saveNotification(
+            $requester,
+            'booking_resource.return_confirmed',
+            "Devolução confirmada",
+            $message,
+            $url
+        );
+
+        if (!$this->isConfigured()) {
+            return false;
+        }
+
+        $body = "<p>Olá, {$requester['name']}.</p>"
+            . "<p>A devolução de <strong>" . htmlspecialchars($resourceLabel, ENT_QUOTES) . "</strong> "
+            . "(qtd: {$quantity}) referente à reserva "
+            . "<strong>" . htmlspecialchars($booking['title'], ENT_QUOTES) . "</strong> "
+            . "foi <strong>confirmada</strong> pelo técnico.</p>"
+            . "<p><a href=\"{$url}\">Ver reserva</a></p>";
+
+        return $this->send($requester['email'], $subject, $body);
+    }
+
+    /**
+     * Notifica o solicitante que a devolução foi rejeitada pelo técnico.
+     * RF-R06 / RN-R07 — status reverte para 'approved'; motivo obrigatório.
+     */
+    public function returnRejected(
+        array  $booking,
+        array  $requester,
+        array  $resource,
+        int    $quantity,
+        string $reason
+    ): bool {
+        $resourceLabel = $resource['name']
+            . (!empty($resource['code']) ? ' (' . $resource['code'] . ')' : '');
+        $subject = "[{$this->appName}] Devolução rejeitada — {$resourceLabel}";
+        $url     = $this->appUrl . '/reservas/' . $booking['id'];
+        $message = "A devolução de {$quantity}× {$resourceLabel} da reserva "
+            . "\"{$booking['title']}\" foi rejeitada. Motivo: {$reason}";
+
+        $this->saveNotification(
+            $requester,
+            'booking_resource.return_rejected',
+            "Devolução rejeitada",
+            $message,
+            $url
+        );
+
+        if (!$this->isConfigured()) {
+            return false;
+        }
+
+        $body = "<p>Olá, {$requester['name']}.</p>"
+            . "<p>A devolução de <strong>" . htmlspecialchars($resourceLabel, ENT_QUOTES) . "</strong> "
+            . "(qtd: {$quantity}) da reserva "
+            . "<strong>" . htmlspecialchars($booking['title'], ENT_QUOTES) . "</strong> "
+            . "foi <strong>rejeitada</strong> pelo técnico.</p>"
+            . "<p><strong>Motivo:</strong> " . htmlspecialchars($reason, ENT_QUOTES) . "</p>"
+            . "<p>Por favor, regularize a situação e registre a devolução novamente.</p>"
+            . "<p><a href=\"{$url}\">Ver reserva</a></p>";
+
+        return $this->send($requester['email'], $subject, $body);
+    }
+
+    // ── Resource return overdue (RN-R09) ─────────────────────────────────────
+
+    /**
+     * RN-R09 — Notifica técnicos e solicitante sobre recurso com devolução pendente vencida.
+     * Chamado pelo ResourceReturnReminders command. Nunca lança exceção.
+     */
+    public function resourceReturnOverdue(
+        array $booking,
+        array $requester,
+        array $resource,
+        int   $quantity
+    ): void {
+        $adminUrl      = $this->appUrl . '/admin/recursos-reservas';
+        $bookingUrl    = $this->appUrl . '/reservas/' . $booking['id'];
+        $resourceLabel = $resource['name']
+            . (!empty($resource['code']) ? ' (' . $resource['code'] . ')' : '');
+
+        $techTitle   = "Devolução pendente — prazo vencido";
+        $techMessage = "{$quantity}× {$resourceLabel} da reserva \"{$booking['title']}\" "
+            . "não foi devolvido após o encerramento. Verifique o painel de devoluções.";
+
+        // Notify all active staff
+        $technicians = db_connect()->table('users')
+            ->where('institution_id', $booking['institution_id'])
+            ->where('is_active', 1)
+            ->whereIn('role', ['role_technician', 'role_coordinator', 'role_vice_director', 'role_director', 'role_admin'])
+            ->get()->getResultArray();
+
+        foreach ($technicians as $tech) {
+            try {
+                $this->saveNotification($tech, 'booking_resource.return_overdue', $techTitle, $techMessage, $adminUrl);
+            } catch (\Throwable $e) {
+                log_message('error', '[NotificationService] resourceReturnOverdue tech DB: ' . $e->getMessage());
+            }
+
+            if ($this->isConfigured() && !empty($tech['email'])) {
+                $techSubject = "[{$this->appName}] Devolução pendente — prazo vencido";
+                $techBody    = "<p>Olá, {$tech['name']}.</p>"
+                    . "<p>O recurso <strong>" . htmlspecialchars($resourceLabel, ENT_QUOTES) . "</strong> "
+                    . "(qtd: {$quantity}) da reserva "
+                    . "<strong>" . htmlspecialchars($booking['title'], ENT_QUOTES) . "</strong> "
+                    . "não foi devolvido após o encerramento do período reservado "
+                    . "pelo solicitante <strong>" . htmlspecialchars($requester['name'], ENT_QUOTES) . "</strong>.</p>"
+                    . "<p><a href=\"{$adminUrl}\">Acessar painel de devoluções</a></p>";
+                try {
+                    $this->send($tech['email'], $techSubject, $techBody);
+                } catch (\Throwable $e) {
+                    log_message('error', '[NotificationService] resourceReturnOverdue tech email: ' . $e->getMessage());
+                }
+            }
+        }
+
+        // Notify requester (in-app)
+        $requesterMessage = "Você tem um recurso pendente de devolução: {$quantity}× {$resourceLabel} "
+            . "da reserva \"{$booking['title']}\". Regularize o quanto antes para poder criar novas reservas.";
+        try {
+            $this->saveNotification(
+                $requester,
+                'booking_resource.return_overdue',
+                "Devolução pendente — prazo vencido",
+                $requesterMessage,
+                $bookingUrl
+            );
+        } catch (\Throwable $e) {
+            log_message('error', '[NotificationService] resourceReturnOverdue requester DB: ' . $e->getMessage());
+        }
+
+        // E-mail to requester if SMTP configured
+        if ($this->isConfigured() && !empty($requester['email'])) {
+            $subject = "[{$this->appName}] Devolução pendente — {$resourceLabel}";
+            $body    = "<p>Olá, {$requester['name']}.</p>"
+                . "<p>O recurso <strong>" . htmlspecialchars($resourceLabel, ENT_QUOTES) . "</strong> "
+                . "(qtd: {$quantity}) da reserva "
+                . "<strong>" . htmlspecialchars($booking['title'], ENT_QUOTES) . "</strong> "
+                . "não foi devolvido após o encerramento do período.</p>"
+                . "<p>Por favor, registre a devolução o quanto antes para poder criar novas reservas.</p>"
+                . "<p><a href=\"{$bookingUrl}\">Ver reserva</a></p>";
+            try {
+                $this->send($requester['email'], $subject, $body);
+            } catch (\Throwable $e) {
+                log_message('error', '[NotificationService] resourceReturnOverdue email: ' . $e->getMessage());
+            }
+        }
+    }
+
     // ── Waitlist notification ─────────────────────────────────────────────────
 
     /**

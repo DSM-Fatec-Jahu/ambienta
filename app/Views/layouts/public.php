@@ -40,7 +40,7 @@
           'agenda'       => 'Agenda',
           'predios'      => 'Prédios',
           'ambientes'    => 'Ambientes',
-          'equipamentos' => 'Equipamentos',
+          'recursos' => 'Recursos',
         ];
         $seg = explode('/', trim(service('uri')->getPath(), '/'))[0] ?? '';
         foreach ($navLinks as $path => $label):

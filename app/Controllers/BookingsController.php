@@ -5,48 +5,67 @@ namespace App\Controllers;
 use App\Models\BookingCommentModel;
 use App\Models\BookingModel;
 use App\Models\BookingRatingModel;
+use App\Models\BookingResourceModel;
 use App\Models\RoomBlackoutModel;
 use App\Models\RoomModel;
 use App\Models\EquipmentModel;
+use App\Models\ResourceModel;
 use App\Models\HolidayModel;
 use App\Models\WaitlistModel;
 
 class BookingsController extends BaseController
 {
-    private BookingCommentModel $comments;
-    private BookingModel        $bookings;
-    private BookingRatingModel  $ratings;
-    private RoomBlackoutModel   $blackouts;
-    private RoomModel           $rooms;
-    private EquipmentModel      $equipment;
-    private HolidayModel        $holidays;
-    private WaitlistModel       $waitlist;
+    private BookingCommentModel  $comments;
+    private BookingModel         $bookings;
+    private BookingRatingModel   $ratings;
+    private BookingResourceModel $bookingResources;
+    private RoomBlackoutModel    $blackouts;
+    private RoomModel            $rooms;
+    private EquipmentModel       $equipment;
+    private ResourceModel        $resources;
+    private HolidayModel         $holidays;
+    private WaitlistModel        $waitlist;
 
     public function __construct()
     {
-        $this->comments  = new BookingCommentModel();
-        $this->bookings  = new BookingModel();
-        $this->ratings   = new BookingRatingModel();
-        $this->blackouts = new RoomBlackoutModel();
-        $this->rooms     = new RoomModel();
-        $this->equipment = new EquipmentModel();
-        $this->holidays  = new HolidayModel();
-        $this->waitlist  = new WaitlistModel();
+        $this->comments         = new BookingCommentModel();
+        $this->bookings         = new BookingModel();
+        $this->ratings          = new BookingRatingModel();
+        $this->bookingResources = new BookingResourceModel();
+        $this->blackouts        = new RoomBlackoutModel();
+        $this->rooms            = new RoomModel();
+        $this->equipment        = new EquipmentModel();
+        $this->resources        = new ResourceModel();
+        $this->holidays         = new HolidayModel();
+        $this->waitlist         = new WaitlistModel();
     }
 
     // ── My bookings ─────────────────────────────────────────────────
 
     public function index(): string
     {
-        $user   = $this->currentUser();
-        $filter = $this->request->getGet('status') ?? '';
+        $user          = $this->currentUser();
+        $filter        = $this->request->getGet('status') ?? '';
+        $institutionId = $this->institution['id'] ?? 0;
 
         $items = $this->bookings->forUser((int) $user['id'], $filter);
 
+        // RN-R08 / Sprint R5 — overdue return banner for requesters
+        $overdueReturnCount = 0;
+        if ($user['role'] === 'role_requester') {
+            $resourcePolicy     = $this->getResourceSettings();
+            $overdueReturnCount = $this->bookingResources->countOverdueReturns(
+                (int) $user['id'],
+                $institutionId,
+                $resourcePolicy['resource_return_deadline_hours']
+            );
+        }
+
         return view('bookings/index', $this->viewData([
-            'pageTitle' => 'Minhas Reservas',
-            'items'     => $items,
-            'filter'    => $filter,
+            'pageTitle'          => 'Minhas Reservas',
+            'items'              => $items,
+            'filter'             => $filter,
+            'overdueReturnCount' => $overdueReturnCount,
         ]));
     }
 
@@ -56,8 +75,7 @@ class BookingsController extends BaseController
     {
         $institutionId = $this->institution['id'] ?? 0;
 
-        $rooms     = $this->rooms->activeForInstitution($institutionId);
-        $equipment = $this->equipment->activeForInstitution($institutionId);
+        $rooms = $this->rooms->activeForInstitution($institutionId);
 
         // Restore wizard state when returning after a validation error
         $restoreData = null;
@@ -98,7 +116,6 @@ class BookingsController extends BaseController
         return view('bookings/create', $this->viewData([
             'pageTitle'   => 'Nova Reserva',
             'rooms'       => $rooms,
-            'equipment'   => $equipment,
             'restoreData' => $restoreData,
             'forUsers'    => $forUsers,
         ]));
@@ -118,10 +135,38 @@ class BookingsController extends BaseController
             return $this->response->setJSON(['rooms' => [], 'equipment' => []]);
         }
 
-        $rooms     = $this->rooms->availableForSlot($institutionId, $date, $startTime, $endTime, $equipmentIds);
-        $equipment = $this->equipment->availableQuantitiesForSlot($institutionId, $date, $startTime, $endTime);
+        $rooms = $this->rooms->availableForSlot($institutionId, $date, $startTime, $endTime, $equipmentIds);
 
-        return $this->response->setJSON(['rooms' => $rooms, 'equipment' => $equipment]);
+        // Attach each room's allocated resources and build filter list
+        $seen          = [];
+        $roomResources = [];
+        foreach ($rooms as &$room) {
+            $allocated        = $this->resources->allocatedToRoom((int) $room['id']);
+            $room['resources'] = array_map(fn($r) => [
+                'id'                 => (int) $r['id'],
+                'name'               => $r['name'],
+                'code'               => $r['code'] ?? '',
+                'allocated_quantity' => (int) $r['allocated_quantity'],
+            ], $allocated);
+
+            foreach ($room['resources'] as $res) {
+                if (!isset($seen[$res['id']])) {
+                    $seen[$res['id']] = true;
+                    $roomResources[]  = $res;
+                }
+            }
+        }
+        unset($room);
+        usort($roomResources, fn($a, $b) => strcmp($a['name'], $b['name']));
+
+        // General-stock resources for the optional lending section (Step 3)
+        $resources = $this->resources->availableForBookingSlot($institutionId, $date, $startTime, $endTime);
+
+        return $this->response->setJSON([
+            'rooms'          => $rooms,
+            'equipment'      => $resources,
+            'room_resources' => $roomResources,
+        ]);
     }
 
     public function store(): \CodeIgniter\HTTP\RedirectResponse
@@ -255,6 +300,21 @@ class BookingsController extends BaseController
             }
         }
 
+        // 4. RN-R08 — block requester if they have overdue unreturned resources
+        if ($user['role'] === 'role_requester') {
+            $resourcePolicy = $this->getResourceSettings();
+            if ($resourcePolicy['resource_return_block_requester']
+                && $this->bookingResources->hasOverdueReturns(
+                    (int) $user['id'],
+                    $institutionId,
+                    $resourcePolicy['resource_return_deadline_hours']
+                )
+            ) {
+                return redirect()->back()->withInput()
+                    ->with('error', 'Você possui recurso(s) com devolução pendente vencida. Regularize antes de criar novas reservas.');
+            }
+        }
+
         $recurrenceType    = $this->request->getPost('recurrence_type') ?: 'none';
         $recurrenceEndDate = $this->request->getPost('recurrence_end_date') ?: null;
 
@@ -289,16 +349,24 @@ class BookingsController extends BaseController
             'qr_token'           => bin2hex(random_bytes(32)),
         ]);
 
-        // Save equipment requests
-        $equipIds = $this->request->getPost('equipment_ids') ?? [];
-        if (!empty($equipIds) && $room['allows_equipment_lending']) {
+        // Save resource requests — only resources allocated to the booked room are accepted
+        $equipIds = array_values(array_filter(
+            array_map('intval', (array) ($this->request->getPost('equipment_ids') ?? []))
+        ));
+        if (!empty($equipIds)) {
+            $roomResources    = $this->resources->allocatedToRoom($roomId);
+            $roomResourceIds  = array_column($roomResources, 'id');
+
             $db = db_connect();
             foreach ($equipIds as $eqId) {
+                if (!in_array($eqId, $roomResourceIds, true)) {
+                    continue; // reject resources not allocated to this room
+                }
                 $qty = (int) ($this->request->getPost("equipment_qty_{$eqId}") ?? 1);
                 if ($qty > 0) {
                     $db->table('booking_resources')->insert([
                         'booking_id'  => $bookingId,
-                        'resource_id' => (int) $eqId,
+                        'resource_id' => $eqId,
                         'quantity'    => $qty,
                         'status'      => 'pending',
                         'created_at'  => date('Y-m-d H:i:s'),
@@ -397,11 +465,10 @@ class BookingsController extends BaseController
             $bookedBy = $userModel->find((int) $booking['creator_id']);
         }
 
-        $equipItems = db_connect()->table('booking_resources be')
-            ->select('be.quantity, e.name AS equipment_name, e.code')
-            ->join('resources e', 'e.id = be.resource_id', 'left')
-            ->where('be.booking_id', $id)
-            ->get()->getResultArray();
+        // RN-R05: load resources with full status for return button eligibility
+        $equipItems     = $this->bookingResources->forBooking($id);
+        $bookingEndDt   = ($booking['date'] ?? '') . ' ' . ($booking['end_time'] ?? '23:59:59');
+        $bookingEnded   = strtotime($bookingEndDt) <= time();
 
         $existingRating = $this->ratings->forBooking($id);
 
@@ -448,6 +515,7 @@ class BookingsController extends BaseController
             'room'               => $room,
             'bookedBy'           => $bookedBy,
             'equipItems'         => $equipItems,
+            'bookingEnded'       => $bookingEnded,
             'existingRating'     => $existingRating,
             'canRate'            => $canRate,
             'canCheckIn'         => $canCheckIn,
@@ -1159,6 +1227,16 @@ class BookingsController extends BaseController
         return [
             'checkin_window_min'      => (int)  ($s['checkin_window_min']      ?? 15),
             'auto_cancel_no_checkin'  => (bool) ($s['auto_cancel_no_checkin']  ?? false),
+        ];
+    }
+
+    /** RN-R08 — resource return policy settings. */
+    private function getResourceSettings(): array
+    {
+        $s = $this->institution['settings_decoded']['resources'] ?? [];
+        return [
+            'resource_return_deadline_hours'  => (int)  ($s['resource_return_deadline_hours']  ?? 1),
+            'resource_return_block_requester' => (bool) ($s['resource_return_block_requester'] ?? true),
         ];
     }
 

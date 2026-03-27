@@ -33,8 +33,8 @@ class AvailabilityController extends BaseController
             ->orderBy('name', 'ASC')
             ->get()->getResultArray();
 
-        // Equipment for filter dropdown
-        $equipmentList = $db->table('equipment')
+        // Resources for filter dropdown
+        $equipmentList = $db->table('resources')
             ->select('id, name')
             ->where('institution_id', $institutionId)
             ->where('is_active', 1)
