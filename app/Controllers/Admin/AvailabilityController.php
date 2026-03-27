@@ -55,7 +55,7 @@ class AvailabilityController extends BaseController
         }
 
         foreach ($equipmentIds as $eqId) {
-            $roomBuilder->where("EXISTS (SELECT 1 FROM room_equipment re WHERE re.room_id = r.id AND re.equipment_id = {$eqId})");
+            $roomBuilder->where("EXISTS (SELECT 1 FROM room_resources rr WHERE rr.room_id = r.id AND rr.resource_id = {$eqId})");
         }
 
         $rooms = $roomBuilder->orderBy('b.name ASC, r.name ASC')->get()->getResultArray();

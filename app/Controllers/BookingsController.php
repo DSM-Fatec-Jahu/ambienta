@@ -296,10 +296,13 @@ class BookingsController extends BaseController
             foreach ($equipIds as $eqId) {
                 $qty = (int) ($this->request->getPost("equipment_qty_{$eqId}") ?? 1);
                 if ($qty > 0) {
-                    $db->table('booking_equipment')->insert([
-                        'booking_id'   => $bookingId,
-                        'equipment_id' => (int) $eqId,
-                        'quantity'     => $qty,
+                    $db->table('booking_resources')->insert([
+                        'booking_id'  => $bookingId,
+                        'resource_id' => (int) $eqId,
+                        'quantity'    => $qty,
+                        'status'      => 'pending',
+                        'created_at'  => date('Y-m-d H:i:s'),
+                        'updated_at'  => date('Y-m-d H:i:s'),
                     ]);
                 }
             }
@@ -394,9 +397,9 @@ class BookingsController extends BaseController
             $bookedBy = $userModel->find((int) $booking['creator_id']);
         }
 
-        $equipItems = db_connect()->table('booking_equipment be')
+        $equipItems = db_connect()->table('booking_resources be')
             ->select('be.quantity, e.name AS equipment_name, e.code')
-            ->join('equipment e', 'e.id = be.equipment_id', 'left')
+            ->join('resources e', 'e.id = be.resource_id', 'left')
             ->where('be.booking_id', $id)
             ->get()->getResultArray();
 

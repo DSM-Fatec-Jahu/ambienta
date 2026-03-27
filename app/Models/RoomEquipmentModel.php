@@ -4,17 +4,22 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
+/**
+ * @deprecated Use RoomResourceModel for new code (Sprint R2).
+ */
 class RoomEquipmentModel extends Model
 {
-    protected $table      = 'room_equipment';
+    protected $table      = 'room_resources';  // renamed from 'room_equipment' in Sprint R1
     protected $primaryKey = 'id';
     protected $returnType = 'array';
 
     protected $allowedFields = [
         'institution_id',
         'room_id',
-        'equipment_id',
+        'resource_id',
         'quantity',
+        'allocated_by_id',
+        'allocated_at',
     ];
 
     protected $useTimestamps = true;
@@ -26,9 +31,9 @@ class RoomEquipmentModel extends Model
      */
     public function forRoom(int $roomId): array
     {
-        return $this->db->table('room_equipment re')
-            ->select('re.id, re.equipment_id, re.quantity, e.name, e.code, e.is_active')
-            ->join('equipment e', 'e.id = re.equipment_id')
+        return $this->db->table('room_resources re')
+            ->select('re.id, re.resource_id AS equipment_id, re.resource_id, re.quantity, e.name, e.code, e.is_active')
+            ->join('resources e', 'e.id = re.resource_id')
             ->where('re.room_id', $roomId)
             ->where('e.deleted_at IS NULL')
             ->orderBy('e.name', 'ASC')
@@ -40,7 +45,7 @@ class RoomEquipmentModel extends Model
      */
     public function attach(int $institutionId, int $roomId, int $equipmentId, int $quantity): void
     {
-        $existing = $this->where('room_id', $roomId)->where('equipment_id', $equipmentId)->first();
+        $existing = $this->where('room_id', $roomId)->where('resource_id', $equipmentId)->first();
 
         if ($existing) {
             $this->update($existing['id'], ['quantity' => $quantity]);
@@ -48,8 +53,9 @@ class RoomEquipmentModel extends Model
             $this->insert([
                 'institution_id' => $institutionId,
                 'room_id'        => $roomId,
-                'equipment_id'   => $equipmentId,
+                'resource_id'    => $equipmentId,
                 'quantity'       => $quantity,
+                'allocated_at'   => date('Y-m-d H:i:s'),
             ]);
         }
     }
@@ -59,6 +65,6 @@ class RoomEquipmentModel extends Model
      */
     public function detach(int $roomId, int $equipmentId): void
     {
-        $this->where('room_id', $roomId)->where('equipment_id', $equipmentId)->delete();
+        $this->where('room_id', $roomId)->where('resource_id', $equipmentId)->delete();
     }
 }

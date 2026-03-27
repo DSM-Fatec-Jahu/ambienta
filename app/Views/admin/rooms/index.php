@@ -101,11 +101,11 @@
             </td>
             <td class="text-right">
               <div class="flex items-center justify-end gap-1">
-                <!-- Room equipment -->
+                <!-- Room resources -->
                 <button
-                  @click="openRoomEquip(<?= (int) $r['id'] ?>, <?= htmlspecialchars(json_encode($r['name']), ENT_QUOTES) ?>)"
-                  class="btn-ghost p-2 text-sky-500 hover:bg-sky-50 hover:text-sky-600" aria-label="Equipamentos do ambiente"
-                  title="Equipamentos do ambiente">
+                  @click="$dispatch('open-room-resources', { roomId: <?= (int) $r['id'] ?>, roomName: <?= htmlspecialchars(json_encode($r['name']), ENT_QUOTES) ?> })"
+                  class="btn-ghost p-2 text-sky-500 hover:bg-sky-50 hover:text-sky-600" aria-label="Recursos do ambiente"
+                  title="Recursos do ambiente">
                   <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                       d="M9 3H5a2 2 0 00-2 2v4m6-6h10a2 2 0 012 2v4M9 3v18m0 0h10a2 2 0 002-2V9M9 21H5a2 2 0 01-2-2V9m0 0h18"/>
@@ -169,113 +169,6 @@
       <?= count($items) ?> ambiente<?= count($items) !== 1 ? 's' : '' ?> cadastrado<?= count($items) !== 1 ? 's' : '' ?>
     </div>
   <?php endif; ?>
-
-  <!-- ── Room Equipment Modal ───────────────────────────────────── -->
-  <div x-show="reqOpen" class="modal-overlay" x-cloak
-       x-transition:enter="transition-opacity duration-200"
-       x-transition:enter-start="opacity-0"
-       x-transition:enter-end="opacity-100"
-       x-transition:leave="transition-opacity duration-150"
-       x-transition:leave-start="opacity-100"
-       x-transition:leave-end="opacity-0">
-
-    <div class="modal-panel max-w-2xl" @click.stop
-         x-transition:enter="transition duration-200"
-         x-transition:enter-start="opacity-0 scale-95"
-         x-transition:enter-end="opacity-100 scale-100">
-
-      <div class="modal-header">
-        <h3 class="text-sm font-semibold text-slate-900">
-          Equipamentos — <span class="text-primary" x-text="reqRoomName"></span>
-        </h3>
-        <button @click="reqOpen = false" class="btn-ghost btn-sm p-1" aria-label="Fechar">
-          <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal-body space-y-4">
-
-        <!-- Add equipment form -->
-        <div class="flex items-end gap-2">
-          <div class="flex-1">
-            <label class="form-label">Equipamento</label>
-            <select x-model="reqNewEquipId" class="form-input">
-              <option value="">— Selecione —</option>
-              <?php foreach ($allEquipment as $eq): ?>
-                <option value="<?= (int) $eq['id'] ?>"><?= esc($eq['name']) ?><?= $eq['code'] ? ' (' . esc($eq['code']) . ')' : '' ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
-          <div class="w-28">
-            <label class="form-label">Qtd. fixa</label>
-            <input type="number" x-model="reqNewQty" class="form-input" min="1" max="9999" placeholder="1">
-          </div>
-          <button @click="addEquip()" :disabled="!reqNewEquipId || reqSaving"
-                  class="btn-primary whitespace-nowrap" style="margin-bottom:0">
-            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/>
-            </svg>
-            Adicionar
-          </button>
-        </div>
-
-        <!-- Equipment list -->
-        <template x-if="reqLoading">
-          <div class="text-sm text-slate-400 text-center py-4">Carregando...</div>
-        </template>
-
-        <template x-if="!reqLoading && reqItems.length === 0">
-          <div class="text-sm text-slate-400 text-center py-4">
-            Nenhum equipamento vinculado a este ambiente.
-          </div>
-        </template>
-
-        <template x-if="!reqLoading && reqItems.length > 0">
-          <div class="overflow-x-auto">
-            <table class="table-base">
-              <thead>
-                <tr>
-                  <th>Equipamento</th>
-                  <th>Código</th>
-                  <th class="text-center">Qtd. fixa</th>
-                  <th class="text-right w-16">Ação</th>
-                </tr>
-              </thead>
-              <tbody>
-                <template x-for="item in reqItems" :key="item.equipment_id">
-                  <tr>
-                    <td class="font-medium text-slate-900" x-text="item.name"></td>
-                    <td>
-                      <span x-show="item.code" class="badge-primary" x-text="item.code"></span>
-                      <span x-show="!item.code" class="text-slate-300">—</span>
-                    </td>
-                    <td class="text-center font-semibold text-slate-700" x-text="item.quantity"></td>
-                    <td class="text-right">
-                      <button @click="removeEquip(item.equipment_id)"
-                              class="btn-ghost p-1.5 text-red-500 hover:bg-red-50 hover:text-red-600"
-                              aria-label="Remover">
-                        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/>
-                        </svg>
-                      </button>
-                    </td>
-                  </tr>
-                </template>
-              </tbody>
-            </table>
-          </div>
-        </template>
-
-      </div>
-
-      <div class="modal-footer">
-        <button @click="reqOpen = false" class="btn-secondary">Fechar</button>
-      </div>
-    </div>
-  </div>
 
   <!-- ── Maintenance Modal ──────────────────────────────────────── -->
   <div x-show="maintModalOpen" class="modal-overlay" x-cloak
@@ -454,86 +347,14 @@
 
 </div>
 
+<?= view('admin/resources/partials/room_resources') ?>
+
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
 <script>
 function roomsPage() {
   return {
-    // room equipment modal
-    reqOpen: false,
-    reqRoomId: null,
-    reqRoomName: '',
-    reqItems: [],
-    reqLoading: false,
-    reqSaving: false,
-    reqNewEquipId: '',
-    reqNewQty: 1,
-
-    async openRoomEquip(roomId, roomName) {
-      this.reqRoomId   = roomId;
-      this.reqRoomName = roomName;
-      this.reqNewEquipId = '';
-      this.reqNewQty   = 1;
-      this.reqOpen     = true;
-      await this.loadRoomEquip();
-    },
-
-    async loadRoomEquip() {
-      this.reqLoading = true;
-      try {
-        const res  = await fetch(`<?= base_url('admin/ambientes/') ?>${this.reqRoomId}/equipamentos`);
-        const data = await res.json();
-        this.reqItems = data.items || [];
-      } catch (e) {
-        this.reqItems = [];
-      } finally {
-        this.reqLoading = false;
-      }
-    },
-
-    async addEquip() {
-      if (!this.reqNewEquipId) return;
-      this.reqSaving = true;
-      const form = new FormData();
-      form.append('equipment_id', this.reqNewEquipId);
-      form.append('quantity', this.reqNewQty || 1);
-      try {
-        const res = await fetch(`<?= base_url('admin/ambientes/') ?>${this.reqRoomId}/equipamentos`, {
-          method: 'POST',
-          headers: { 'X-CSRF-TOKEN': '<?= csrf_hash() ?>' },
-          body: form,
-        });
-        if (res.ok) {
-          this.reqNewEquipId = '';
-          this.reqNewQty = 1;
-          await this.loadRoomEquip();
-        } else {
-          const d = await res.json();
-          alert(d.error ?? 'Erro ao adicionar equipamento.');
-        }
-      } catch (e) {
-        alert('Erro de conexão.');
-      } finally {
-        this.reqSaving = false;
-      }
-    },
-
-    async removeEquip(equipmentId) {
-      if (!confirm('Remover este equipamento do ambiente?')) return;
-      try {
-        const res = await fetch(`<?= base_url('admin/ambientes/') ?>${this.reqRoomId}/equipamentos/${equipmentId}/delete`, {
-          method: 'POST',
-          headers: { 'X-CSRF-TOKEN': '<?= csrf_hash() ?>' },
-        });
-        if (res.ok) {
-          await this.loadRoomEquip();
-        }
-      } catch (e) {
-        alert('Erro de conexão.');
-      }
-    },
-
     modalOpen: false,
     mode: 'create',
     editId: null,

@@ -4,9 +4,13 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
+/**
+ * @deprecated Use ResourceModel for new code. This class is kept for backward
+ *             compatibility with existing controllers pending migration to ResourceModel.
+ */
 class EquipmentModel extends Model
 {
-    protected $table          = 'equipment';
+    protected $table          = 'resources';  // renamed from 'equipment' in Sprint R1
     protected $primaryKey     = 'id';
     protected $returnType     = 'array';
     protected $useSoftDeletes = true;
@@ -14,10 +18,13 @@ class EquipmentModel extends Model
     protected $allowedFields = [
         'institution_id',
         'name',
+        'category',
         'code',
         'description',
         'quantity_total',
         'is_active',
+        'created_by_id',
+        'updated_by_id',
     ];
 
     protected $useTimestamps = true;
@@ -56,19 +63,19 @@ class EquipmentModel extends Model
         }
 
         $equipIds  = array_column($equipment, 'id');
-        $bookedRows = $this->db->table('booking_equipment be')
-            ->select('be.equipment_id, SUM(be.quantity) AS booked_qty')
+        $bookedRows = $this->db->table('booking_resources be')
+            ->select('be.resource_id, SUM(be.quantity) AS booked_qty')
             ->join('bookings b', 'b.id = be.booking_id')
             ->where('b.date', $date)
             ->whereIn('b.status', ['pending', 'approved'])
             ->where('b.deleted_at IS NULL')
             ->where('b.start_time <', $endTime)
             ->where('b.end_time >', $startTime)
-            ->whereIn('be.equipment_id', $equipIds)
-            ->groupBy('be.equipment_id')
+            ->whereIn('be.resource_id', $equipIds)
+            ->groupBy('be.resource_id')
             ->get()->getResultArray();
 
-        $bookedMap = array_column($bookedRows, 'booked_qty', 'equipment_id');
+        $bookedMap = array_column($bookedRows, 'booked_qty', 'resource_id');
 
         foreach ($equipment as &$eq) {
             $booked              = (int) ($bookedMap[$eq['id']] ?? 0);

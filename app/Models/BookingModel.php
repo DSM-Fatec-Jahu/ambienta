@@ -288,18 +288,18 @@ class BookingModel extends Model
      */
     public function equipmentUsage(int $institutionId, string $dateFrom, string $dateTo): array
     {
-        return $this->db->table('booking_equipment be')
+        return $this->db->table('booking_resources be')
             ->select('e.id AS equipment_id, e.name AS equipment_name, e.code AS equipment_code,
                       COUNT(DISTINCT bk.id) AS total_bookings,
                       SUM(be.quantity) AS total_quantity')
             ->join('bookings bk', 'bk.id = be.booking_id', 'inner')
-            ->join('equipment e', 'e.id = be.equipment_id', 'left')
+            ->join('resources e',  'e.id = be.resource_id',  'left')
             ->where('bk.institution_id', $institutionId)
             ->where('bk.deleted_at IS NULL')
             ->where('bk.date >=', $dateFrom)
             ->where('bk.date <=', $dateTo)
             ->whereIn('bk.status', ['approved', 'absent', 'pending'])
-            ->groupBy('be.equipment_id')
+            ->groupBy('be.resource_id')
             ->orderBy('total_bookings DESC')
             ->get()->getResultArray();
     }

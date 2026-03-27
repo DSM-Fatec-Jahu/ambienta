@@ -5,20 +5,17 @@ namespace App\Controllers\Admin;
 use App\Controllers\BaseController;
 use App\Models\BookingRatingModel;
 use App\Models\BuildingModel;
-use App\Models\EquipmentModel;
 use App\Models\RoomModel;
 
 class RoomsController extends BaseController
 {
     private RoomModel     $rooms;
     private BuildingModel $buildings;
-    private EquipmentModel $equipment;
 
     public function __construct()
     {
         $this->rooms     = new RoomModel();
         $this->buildings = new BuildingModel();
-        $this->equipment = new EquipmentModel();
     }
 
     public function index(): string
@@ -28,16 +25,14 @@ class RoomsController extends BaseController
         $items     = $this->rooms->withBuilding($institutionId);
         $buildings = $this->buildings->activeForInstitution($institutionId);
 
-        $ratingModel  = new BookingRatingModel();
-        $ratingsMap   = $ratingModel->avgByRoomForInstitution($institutionId);
-        $allEquipment = $this->equipment->activeForInstitution($institutionId);
+        $ratingModel = new BookingRatingModel();
+        $ratingsMap  = $ratingModel->avgByRoomForInstitution($institutionId);
 
         return view('admin/rooms/index', $this->viewData([
-            'pageTitle'    => 'Ambientes',
-            'items'        => $items,
-            'buildings'    => $buildings,
-            'ratingsMap'   => $ratingsMap,
-            'allEquipment' => $allEquipment,
+            'pageTitle' => 'Ambientes',
+            'items'     => $items,
+            'buildings' => $buildings,
+            'ratingsMap' => $ratingsMap,
         ]));
     }
 

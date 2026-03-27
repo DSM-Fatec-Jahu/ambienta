@@ -10,7 +10,9 @@ $routes->get('agenda',       'Public\AgendaController::index');
 $routes->get('predios',      'Public\BuildingsController::index');
 $routes->get('ambientes',        'Public\RoomsController::index');
 $routes->get('ambientes/(:num)', 'Public\RoomsController::show/$1');
-$routes->get('equipamentos', 'Public\EquipmentController::index');
+$routes->get('recursos', 'Public\ResourceController::index');
+// Legacy redirect: keep old URL working
+$routes->get('equipamentos', 'Public\ResourceController::index');
 
 // ─── Authentication routes ────────────────────────────────────────────────────
 $routes->get( 'login',                       'Auth\LoginController::index');
@@ -84,21 +86,32 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('ambientes/(:num)/update',                                 'Admin\RoomsController::update/$1');
         $routes->post('ambientes/(:num)/delete',                                 'Admin\RoomsController::delete/$1');
         $routes->post('ambientes/(:num)/manutencao',                             'Admin\RoomsController::setMaintenance/$1');
-        // Room equipment
-        $routes->get( 'ambientes/(:num)/equipamentos',                           'Admin\RoomEquipmentController::index/$1');
-        $routes->post('ambientes/(:num)/equipamentos',                           'Admin\RoomEquipmentController::store/$1');
-        $routes->post('ambientes/(:num)/equipamentos/(:num)/delete',             'Admin\RoomEquipmentController::destroy/$1/$2');
+        // Room resources — Sprint R2: now handled by RoomResourceController
+        $routes->get( 'ambientes/(:num)/recursos',                                'Admin\RoomResourceController::index/$1');
+        $routes->post('ambientes/(:num)/recursos',                                'Admin\RoomResourceController::store/$1');
+        $routes->post('ambientes/(:num)/recursos/(:num)/delete',                  'Admin\RoomResourceController::destroy/$1/$2');
+        // Legacy aliases (mantém compatibilidade com links/scripts existentes)
+        $routes->get( 'ambientes/(:num)/equipamentos',                            'Admin\RoomEquipmentController::index/$1');
+        $routes->post('ambientes/(:num)/equipamentos',                            'Admin\RoomEquipmentController::store/$1');
+        $routes->post('ambientes/(:num)/equipamentos/(:num)/delete',              'Admin\RoomEquipmentController::destroy/$1/$2');
 
-        // Equipment / Equipamentos
-        $routes->get( 'equipamentos',                        'Admin\EquipmentController::index');
-        $routes->post('equipamentos',                        'Admin\EquipmentController::store');
-        $routes->get( 'equipamentos/template-csv',           'Admin\EquipmentController::templateCsv');
-        $routes->get( 'equipamentos/template-xlsx',          'Admin\EquipmentController::templateXlsx');
-        $routes->post('equipamentos/importar',               'Admin\EquipmentController::importFile');
-        $routes->post('equipamentos/(:num)/update',          'Admin\EquipmentController::update/$1');
-        $routes->post('equipamentos/(:num)/delete',          'Admin\EquipmentController::delete/$1');
-        $routes->post('equipamentos/(:num)/transferir',      'Admin\EquipmentController::transfer/$1');
-        $routes->get( 'equipamentos/(:num)/historico',       'Admin\EquipmentController::history/$1');
+        // Resources / Recursos
+        $routes->get( 'recursos',                            'Admin\ResourceController::index');
+        $routes->post('recursos',                            'Admin\ResourceController::store');
+        $routes->get( 'recursos/template-xlsx',              'Admin\ResourceController::templateXlsx');
+        $routes->post('recursos/importar',                   'Admin\ResourceController::importFile');
+        $routes->post('recursos/(:num)/update',              'Admin\ResourceController::update/$1');
+        $routes->post('recursos/(:num)/delete',              'Admin\ResourceController::destroy/$1');
+        $routes->get( 'recursos/(:num)/historico',           'Admin\ResourceController::history/$1');
+        // Legacy equipment routes — redirect to ResourceController
+        $routes->get( 'equipamentos',                        'Admin\ResourceController::index');
+        $routes->post('equipamentos',                        'Admin\ResourceController::store');
+        $routes->get( 'equipamentos/template-csv',           'Admin\ResourceController::templateXlsx');
+        $routes->get( 'equipamentos/template-xlsx',          'Admin\ResourceController::templateXlsx');
+        $routes->post('equipamentos/importar',               'Admin\ResourceController::importFile');
+        $routes->post('equipamentos/(:num)/update',          'Admin\ResourceController::update/$1');
+        $routes->post('equipamentos/(:num)/delete',          'Admin\ResourceController::destroy/$1');
+        $routes->get( 'equipamentos/(:num)/historico',       'Admin\ResourceController::history/$1');
 
         // Users
         $routes->get( 'usuarios',                                  'Admin\UsersController::index');

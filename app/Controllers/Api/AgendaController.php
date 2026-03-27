@@ -58,9 +58,9 @@ class AgendaController extends BaseController
 
         if ($equipName || $patrimonyCode) {
             // Filter by equipment associated with the booking
-            $subQuery = $db->table('booking_equipment be')
+            $subQuery = $db->table('booking_resources be')
                 ->select('be.booking_id')
-                ->join('equipment e', 'e.id = be.equipment_id', 'inner');
+                ->join('resources e', 'e.id = be.resource_id', 'inner');
 
             if ($equipName) {
                 $subQuery->like('e.name', $equipName);

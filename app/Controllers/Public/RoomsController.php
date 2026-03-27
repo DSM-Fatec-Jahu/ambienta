@@ -34,9 +34,9 @@ class RoomsController extends BaseController
         $building = $db->table('buildings')->where('id', $room['building_id'])->get()->getRowArray();
 
         // Equipment frequently used with this room
-        $equipment = $db->table('booking_equipment be')
+        $equipment = $db->table('booking_resources be')
             ->select('e.name, e.code, e.description')
-            ->join('equipment e', 'e.id = be.equipment_id')
+            ->join('resources e',  'e.id = be.resource_id')
             ->join('bookings bk', 'bk.id = be.booking_id')
             ->where('bk.room_id', $id)
             ->where('bk.status', 'approved')

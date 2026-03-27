@@ -4,21 +4,27 @@ namespace App\Models;
 
 use CodeIgniter\Model;
 
+/**
+ * @deprecated Use ResourceMovementModel for new code.
+ */
 class EquipmentTransferModel extends Model
 {
-    protected $table      = 'equipment_transfers';
+    protected $table      = 'resource_movements';  // renamed from 'equipment_transfers' in Sprint R1
     protected $primaryKey = 'id';
     protected $returnType = 'array';
 
     protected $allowedFields = [
         'institution_id',
-        'equipment_id',
+        'resource_id',
+        'movement_type',
         'quantity',
         'origin_room_id',
         'destination_room_id',
+        'booking_id',
         'handler_id',
+        'confirmed_by_id',
         'notes',
-        'transferred_at',
+        'moved_at',
     ];
 
     protected $useTimestamps = false;
@@ -28,23 +34,24 @@ class EquipmentTransferModel extends Model
      */
     public function historyForEquipment(int $equipmentId): array
     {
-        return $this->db->table('equipment_transfers et')
+        return $this->db->table('resource_movements rm')
             ->select([
-                'et.id',
-                'et.quantity',
-                'et.notes',
-                'et.transferred_at',
-                'orig.name  AS origin_room_name',
-                'orig.code  AS origin_room_code',
-                'dest.name  AS destination_room_name',
-                'dest.code  AS destination_room_code',
-                'u.name     AS handler_name',
+                'rm.id',
+                'rm.movement_type',
+                'rm.quantity',
+                'rm.notes',
+                'rm.moved_at AS transferred_at',
+                'orig.name         AS origin_room_name',
+                'orig.abbreviation AS origin_room_code',
+                'dest.name         AS destination_room_name',
+                'dest.abbreviation AS destination_room_code',
+                'u.name            AS handler_name',
             ])
-            ->join('rooms orig', 'orig.id = et.origin_room_id',      'left')
-            ->join('rooms dest', 'dest.id = et.destination_room_id', 'left')
-            ->join('users u',    'u.id    = et.handler_id',            'left')
-            ->where('et.equipment_id', $equipmentId)
-            ->orderBy('et.transferred_at', 'DESC')
+            ->join('rooms orig', 'orig.id = rm.origin_room_id',       'left')
+            ->join('rooms dest', 'dest.id = rm.destination_room_id',  'left')
+            ->join('users u',    'u.id    = rm.handler_id',            'left')
+            ->where('rm.resource_id', $equipmentId)
+            ->orderBy('rm.moved_at', 'DESC')
             ->get()->getResultArray();
     }
 }
