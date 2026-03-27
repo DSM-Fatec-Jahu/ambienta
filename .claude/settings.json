@@ -1,0 +1,13 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(php spark:*)",
+      "Bash(mysql -u root ambienta -e \"SHOW INDEX FROM room_resources;\")",
+      "Bash(mysql -u root ambienta -e \"SHOW CREATE TABLE room_resources\\\\G\")",
+      "Bash(mysql -u root ambienta -e \"DESCRIBE resources; DESCRIBE room_resources; DESCRIBE booking_resources;\")",
+      "Bash(find c:/php-projects/ambienta/app/Views -name *.php)",
+      "Bash(xargs grep:*)",
+      "Read(//c/Users/ADMIN/OneDrive/_FATEC/Sistema_Ambientes/**)"
+    ]
+  }
+}
