@@ -123,7 +123,6 @@ _modules/*
 # Visual Studio Code & Claude
 .vscode/*
 !.vscode/extensions.json
-.claude/
 
 # Visual Studio & Other Editors
 *.suo
