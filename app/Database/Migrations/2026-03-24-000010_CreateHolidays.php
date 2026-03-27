@@ -20,7 +20,7 @@ class CreateHolidays extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addKey(['institution_id', 'date']);
-        $this->forge->createTable('holidays');
+        $this->forge->createTable('holidays', true);
     }
 
     public function down(): void

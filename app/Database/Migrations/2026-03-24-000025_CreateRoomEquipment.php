@@ -27,7 +27,7 @@ class CreateRoomEquipment extends Migration
         $this->forge->addUniqueKey(['room_id', 'equipment_id'], 'uq_room_equipment');
         $this->forge->addKey('institution_id');
 
-        $this->forge->createTable('room_equipment');
+        $this->forge->createTable('room_equipment', true);
     }
 
     public function down(): void

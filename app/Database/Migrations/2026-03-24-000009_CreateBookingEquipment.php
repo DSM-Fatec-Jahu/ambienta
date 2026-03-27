@@ -16,7 +16,7 @@ class CreateBookingEquipment extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addKey(['booking_id', 'equipment_id']);
-        $this->forge->createTable('booking_equipment');
+        $this->forge->createTable('booking_equipment', true);
     }
 
     public function down(): void

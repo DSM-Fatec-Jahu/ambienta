@@ -22,7 +22,7 @@ class CreateEquipmentTransfers extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addKey('equipment_id');
         $this->forge->addKey('institution_id');
-        $this->forge->createTable('equipment_transfers');
+        $this->forge->createTable('equipment_transfers', true);
     }
 
     public function down(): void

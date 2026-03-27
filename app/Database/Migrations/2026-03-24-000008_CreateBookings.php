@@ -37,7 +37,7 @@ class CreateBookings extends Migration
         $this->forge->addKey(['institution_id', 'room_id', 'date']);
         $this->forge->addKey('user_id');
         $this->forge->addKey('status');
-        $this->forge->createTable('bookings');
+        $this->forge->createTable('bookings', true);
     }
 
     public function down(): void

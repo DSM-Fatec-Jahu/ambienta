@@ -68,7 +68,7 @@ class CreateBookingWaitlist extends Migration
         // One entry per user per slot
         $this->forge->addUniqueKey(['room_id', 'date', 'starts_at', 'ends_at', 'user_id']);
 
-        $this->forge->createTable('booking_waitlist');
+        $this->forge->createTable('booking_waitlist', true);
     }
 
     public function down(): void

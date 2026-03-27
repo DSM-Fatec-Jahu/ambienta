@@ -62,7 +62,7 @@ class CreateRoomBlackouts extends Migration
         $this->forge->addKey('room_id');
         $this->forge->addKey(['starts_at', 'ends_at']);
 
-        $this->forge->createTable('room_blackouts');
+        $this->forge->createTable('room_blackouts', true);
     }
 
     public function down(): void

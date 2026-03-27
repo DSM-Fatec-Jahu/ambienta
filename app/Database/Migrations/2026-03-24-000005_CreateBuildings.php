@@ -21,7 +21,7 @@ class CreateBuildings extends Migration
         ]);
         $this->forge->addKey('id', true);
         $this->forge->addKey('institution_id');
-        $this->forge->createTable('buildings');
+        $this->forge->createTable('buildings', true);
     }
 
     public function down(): void

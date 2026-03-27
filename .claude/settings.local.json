@@ -56,7 +56,9 @@
       "Bash(grep -n \"public function\" \"c:/php-projects/ambienta/app/Controllers/Public/\"*.php)",
       "Bash(grep -n \"public function\" \"c:/php-projects/ambienta/app/Controllers/Admin/\"*.php)",
       "Bash(grep -E \"^$routes\")",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(grep -n \"createTable\\(\" c:php-projectsambientaappDatabaseMigrations*.php)",
+      "Bash(php -r \":*)"
     ]
   }
 }

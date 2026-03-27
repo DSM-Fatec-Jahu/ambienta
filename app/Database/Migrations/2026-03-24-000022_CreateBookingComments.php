@@ -44,7 +44,7 @@ class CreateBookingComments extends Migration
         $this->forge->addKey('booking_id');
         $this->forge->addKey('institution_id');
 
-        $this->forge->createTable('booking_comments');
+        $this->forge->createTable('booking_comments', true);
     }
 
     public function down(): void

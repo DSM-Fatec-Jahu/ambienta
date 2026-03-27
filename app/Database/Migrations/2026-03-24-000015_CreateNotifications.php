@@ -62,7 +62,7 @@ class CreateNotifications extends Migration
         $this->forge->addKey(['user_id', 'read_at']);
         $this->forge->addKey('created_at');
 
-        $this->forge->createTable('notifications');
+        $this->forge->createTable('notifications', true);
     }
 
     public function down(): void

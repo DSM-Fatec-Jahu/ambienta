@@ -27,7 +27,7 @@ class CreateRooms extends Migration
         $this->forge->addKey('id', true);
         $this->forge->addKey('institution_id');
         $this->forge->addKey('building_id');
-        $this->forge->createTable('rooms');
+        $this->forge->createTable('rooms', true);
     }
 
     public function down(): void
