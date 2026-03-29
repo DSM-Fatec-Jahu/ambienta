@@ -66,19 +66,19 @@ class RoomModel extends Model
 
     /**
      * Returns active rooms with no conflicting booking in the given slot.
-     * Optionally filters to rooms that allow equipment lending.
-     */
-    /**
-     * Returns active rooms with no conflicting booking in the given slot.
-     * Pass $equipmentIds to restrict to rooms that allow equipment lending
-     * (since equipment is institution-wide, any lending room can provide it).
+     *
+     * @param array  $equipmentIds  Legacy: filter by specific resource IDs (Admin/Técnico).
+     * @param array  $resourceTerms New: filter by name/category strings (Solicitante — RN-R12).
+     *                              Each term is matched via ResourceModel::roomIdsHavingResource().
+     *                              Multiple terms = AND logic (room must satisfy all terms).
      */
     public function availableForSlot(
         int    $institutionId,
         string $date,
         string $startTime,
         string $endTime,
-        array  $equipmentIds = []
+        array  $equipmentIds  = [],  // legacy — Admin/Técnico
+        array  $resourceTerms = []   // new — Solicitante (name/category strings)
     ): array {
         $bookedIds = array_column(
             $this->db->table('bookings')
@@ -104,12 +104,32 @@ class RoomModel extends Model
             $q->whereNotIn('r.id', $bookedIds);
         }
 
+        // Legacy filter: restrict by specific resource IDs (Admin/Técnico)
         if (!empty($equipmentIds)) {
             foreach ($equipmentIds as $resourceId) {
                 $q->whereIn('r.id', function ($b) use ($resourceId) {
                     $b->select('room_id')->from('room_resources')->where('resource_id', $resourceId);
                 });
             }
+        }
+
+        // New filter: restrict by name/category terms (Solicitante — RN-R12)
+        if (!empty($resourceTerms)) {
+            $resourceModel  = new \App\Models\ResourceModel();
+            $allowedRoomIds = null;
+
+            foreach ($resourceTerms as $term) {
+                $ids = $resourceModel->roomIdsHavingResource($institutionId, (string) $term);
+                $allowedRoomIds = $allowedRoomIds === null
+                    ? $ids
+                    : array_values(array_intersect($allowedRoomIds, $ids));
+            }
+
+            if (empty($allowedRoomIds)) {
+                return [];
+            }
+
+            $q->whereIn('r.id', $allowedRoomIds);
         }
 
         return $q->orderBy('b.name, r.name')->get()->getResultArray();

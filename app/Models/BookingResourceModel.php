@@ -133,8 +133,9 @@ class BookingResourceModel extends Model
                 'br.rejection_note',
                 'br.returned_at',
                 'br.confirmed_at',
-                'r.name AS resource_name',
-                'r.code AS resource_code',
+                'r.name     AS resource_name',
+                'r.code     AS resource_code',
+                'r.category AS resource_category',
             ])
             ->join('resources r', 'r.id = br.resource_id')
             ->where('br.booking_id', $bookingId)

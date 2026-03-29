@@ -152,34 +152,31 @@
               </svg>
               <h3 class="text-xs font-semibold uppercase tracking-wide text-slate-500">Filtrar por recurso</h3>
             </div>
-            <span x-show="equipmentFilter.length > 0" x-cloak
+            <span x-show="resourceTerms.length > 0" x-cloak
                   class="badge-primary text-2xs"
-                  x-text="equipmentFilter.length + ' selecionado(s)'"></span>
+                  x-text="resourceTerms.length + ' selecionado(s)'"></span>
             <button type="button"
-                    x-show="equipmentFilter.length > 0" x-cloak
-                    @click="equipmentFilter = []; searchRooms()"
+                    x-show="resourceTerms.length > 0" x-cloak
+                    @click="resourceTerms = []; searchRooms()"
                     class="text-xs text-slate-400 hover:text-slate-700 ml-auto underline underline-offset-2">
               Limpar filtro
             </button>
           </div>
 
           <div class="flex flex-wrap gap-2">
-            <template x-for="eq in filterResources" :key="eq.id">
-              <label :class="equipmentFilter.includes(eq.id)
+            <template x-for="eq in filterResources" :key="eq.name">
+              <button type="button"
+                      :class="resourceTerms.includes(eq.name)
                                ? 'ring-2 ring-primary bg-primary-light text-primary'
-                               : 'ring-1 ring-slate-200 hover:ring-primary/50 cursor-pointer'"
-                     class="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all select-none">
-                <input type="checkbox"
-                       :value="eq.id"
-                       x-model="equipmentFilter"
-                       @change="searchRooms()"
-                       class="sr-only">
+                               : 'ring-1 ring-slate-200 hover:ring-primary/50'"
+                      class="flex items-center gap-2 px-3 py-1.5 rounded-xl transition-all select-none cursor-pointer"
+                      @click="resourceTerms.includes(eq.name) ? resourceTerms = resourceTerms.filter(t => t !== eq.name) : resourceTerms.push(eq.name); searchRooms()">
                 <span class="text-sm font-medium" x-text="eq.name"></span>
-              </label>
+              </button>
             </template>
           </div>
 
-          <p x-show="equipmentFilter.length > 0" x-cloak class="text-xs text-slate-400 mt-2.5 flex items-center gap-1">
+          <p x-show="resourceTerms.length > 0" x-cloak class="text-xs text-slate-400 mt-2.5 flex items-center gap-1">
             <svg class="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                 d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
@@ -199,13 +196,13 @@
         </svg>
         <p class="empty-state-title">Nenhuma sala disponível</p>
         <p class="empty-state-description"
-           x-text="equipmentFilter.length > 0
-             ? 'Nenhuma sala com empréstimo de recursos disponível para este filtro. Tente remover alguns itens do filtro.'
+           x-text="resourceTerms.length > 0
+             ? 'Nenhuma sala com os recursos selecionados disponível. Tente remover alguns itens do filtro.'
              : 'Todos os ambientes estão ocupados neste horário. Tente outro dia ou intervalo de tempo.'">
         </p>
         <div class="flex gap-2 mt-4">
-          <button type="button" x-show="equipmentFilter.length > 0" x-cloak
-                  @click="equipmentFilter = []; searchRooms()"
+          <button type="button" x-show="resourceTerms.length > 0" x-cloak
+                  @click="resourceTerms = []; searchRooms()"
                   class="btn-secondary">
             Limpar filtro
           </button>
@@ -321,14 +318,14 @@
           <p class="text-sm text-slate-400 text-center py-6">Nenhum recurso alocado neste ambiente.</p>
         </template>
         <div class="divide-y divide-slate-100">
-          <template x-for="eq in (modalRoom ? modalRoom.resources : [])" :key="eq.id">
+          <template x-for="eq in (modalRoom ? modalRoom.resources : [])" :key="eq.name + (eq.id ?? '')">
             <div class="flex items-center justify-between py-2.5">
               <div class="min-w-0">
                 <p class="text-sm font-medium text-slate-900 truncate" x-text="eq.name"></p>
                 <p class="text-xs text-slate-400" x-show="eq.code" x-text="eq.code"></p>
               </div>
               <span class="badge-approved ml-3 flex-shrink-0"
-                    x-text="eq.allocated_quantity + ' un.'"></span>
+                    x-text="(eq.total_quantity ?? eq.allocated_quantity) + ' un.'"></span>
             </div>
           </template>
         </div>
@@ -344,6 +341,19 @@
 
   <!-- ══ STEP 3: Booking form ════════════════════════════════════════════════ -->
   <div x-show="step === 3" x-cloak>
+  <?php if (session()->getFlashdata('resource_warnings')): ?>
+  <div class="alert-warning mb-4" role="alert">
+    <strong>Atenção:</strong> Alguns recursos solicitados não puderam ser alocados:
+    <ul class="list-disc list-inside mt-1">
+      <?php foreach (session()->getFlashdata('resource_warnings') as $w): ?>
+        <li><?= esc($w) ?></li>
+      <?php endforeach; ?>
+    </ul>
+  </div>
+  <?php endif; ?>
+
+  <?php $isRequester = ($currentUser['role'] ?? '') === 'role_requester'; ?>
+
   <form method="POST" action="<?= base_url('reservas') ?>">
     <?= csrf_field() ?>
 
@@ -485,38 +495,69 @@
         </div>
         <?php endif; ?>
 
-        <!-- Recursos alocados na sala selecionada -->
+        <!-- Bloco 1: Recursos fixos do ambiente (somente leitura — RN-R02/RN-R13) -->
         <div class="card" x-show="selectedRoom && selectedRoom.resources && selectedRoom.resources.length > 0" x-cloak>
           <div class="card-header">
-            <h2 class="text-sm font-semibold text-slate-900">Recursos do ambiente <span class="text-slate-400 font-normal">(opcional)</span></h2>
+            <h2 class="text-sm font-semibold text-slate-900">Recursos do ambiente</h2>
           </div>
           <div class="card-body">
-            <p class="form-hint mb-3">Selecione os recursos deste ambiente que deseja utilizar na reserva.</p>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <template x-for="eq in (selectedRoom ? selectedRoom.resources : [])" :key="eq.id">
-                <label x-data="{ checked: false, qty: 1 }"
-                       :class="checked ? 'ring-2 ring-primary bg-primary-light' : 'ring-1 ring-slate-200'"
-                       class="flex items-start gap-3 p-3 rounded-xl cursor-pointer transition-all">
-                  <input type="checkbox" name="equipment_ids[]" :value="eq.id"
-                         class="mt-0.5 rounded border-slate-300 text-primary"
-                         x-model="checked">
-                  <div class="flex-1 min-w-0">
-                    <p class="text-sm font-medium text-slate-900" x-text="eq.name"></p>
-                    <p class="text-xs text-slate-400" x-show="eq.code" x-text="eq.code"></p>
-                    <div x-show="checked" x-cloak class="mt-2">
-                      <label class="text-xs text-slate-500">Quantidade:</label>
-                      <input type="number" :name="'equipment_qty_' + eq.id"
-                             min="1" :max="eq.allocated_quantity"
-                             x-model.number="qty"
-                             class="form-input py-1 text-xs w-20 mt-0.5">
-                    </div>
+            <p class="form-hint mb-3">Recursos fixos deste ambiente — disponíveis automaticamente durante a reserva.</p>
+            <div class="flex flex-wrap gap-2">
+              <?php if ($isRequester): ?>
+              <!-- Requester: grouped badges without id/code (RN-R13) -->
+              <template x-for="res in (selectedRoom ? selectedRoom.resources : [])" :key="res.name">
+                <span class="badge-secondary text-xs px-2.5 py-1 flex items-center gap-1">
+                  <span x-text="res.name"></span>
+                  <span x-show="res.total_quantity > 1" class="text-slate-400"
+                        x-text="'(' + res.total_quantity + ')'"></span>
+                </span>
+              </template>
+              <?php else: ?>
+              <!-- Staff: detailed badges with code -->
+              <template x-for="eq in (selectedRoom ? selectedRoom.resources : [])" :key="eq.id ?? eq.name">
+                <span class="badge-secondary text-xs px-2.5 py-1 flex items-center gap-1.5">
+                  <span x-text="eq.name"></span>
+                  <span x-show="eq.code" class="text-slate-400 font-mono" x-text="'#' + eq.code"></span>
+                  <span class="text-slate-400" x-text="'(' + eq.allocated_quantity + ' un.)'"></span>
+                </span>
+              </template>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bloco 2: Recursos adicionais do estoque geral (RN-R14) -->
+        <?php if ($isRequester): ?>
+        <div class="card" x-show="availableResources && availableResources.length > 0" x-cloak>
+          <div class="card-header">
+            <h2 class="text-sm font-semibold text-slate-900">Recursos adicionais <span class="text-slate-400 font-normal">(opcional)</span></h2>
+          </div>
+          <div class="card-body space-y-2">
+            <p class="form-hint">Solicite recursos do estoque geral para esta reserva. Informe a quantidade desejada.</p>
+            <div class="divide-y divide-slate-100">
+              <template x-for="(res, idx) in availableResources" :key="res.name + '||' + (res.category ?? '')">
+                <div class="flex items-center justify-between gap-3 py-2.5">
+                  <div>
+                    <span class="text-sm font-medium text-slate-800" x-text="res.name"></span>
+                    <span x-show="res.category" class="text-xs text-slate-400 ml-1"
+                          x-text="'(' + res.category + ')'"></span>
+                    <span class="text-xs text-slate-400 ml-2"
+                          x-text="'até ' + res.available_qty + ' disponível(is)'"></span>
                   </div>
-                  <span class="text-xs text-slate-400 whitespace-nowrap" x-text="eq.allocated_quantity + ' un.'"></span>
-                </label>
+                  <input type="number"
+                         :name="'resource_requests[' + idx + '][quantity]'"
+                         :min="0"
+                         :max="res.available_qty"
+                         value="0"
+                         class="w-16 text-center border border-slate-300 rounded-lg text-sm p-1 focus:ring-2 focus:ring-primary/40 focus:border-primary">
+                  <input type="hidden" :name="'resource_requests[' + idx + '][name]'"     :value="res.name">
+                  <input type="hidden" :name="'resource_requests[' + idx + '][category]'" :value="res.category ?? ''">
+                </div>
               </template>
             </div>
           </div>
         </div>
+        <?php endif; ?>
 
       </div><!-- /left col -->
 
@@ -579,6 +620,8 @@
 
 <?php endif; ?>
 
+<!-- AUDITADO: sem vazamento de patrimônio para Solicitante em 2026-03-29 -->
+
 <?= $this->endSection() ?>
 
 <?= $this->section('scripts') ?>
@@ -593,9 +636,9 @@ function bookingWizard() {
     searchEnd:   restore?.searchEnd   ?? '',
 
     availableRooms:     [],
-    availableEquipment: [],
+    availableResources: [],   // general-stock resources for Bloco 2 (grouped for requester)
     filterResources:    [],
-    equipmentFilter:    [],
+    resourceTerms:      [],   // text-based filter terms (RN-R12)
     loading:            false,
     searchError:        '',
     equipModalOpen:     false,
@@ -621,20 +664,19 @@ function bookingWizard() {
           start_time: this.searchStart,
           end_time:   this.searchEnd,
         });
-        this.equipmentFilter.forEach(id => params.append('equipment_ids[]', id));
+        this.resourceTerms.forEach(term => params.append('resource_terms[]', term));
 
         const res  = await fetch(`<?= base_url('reservas/salas-disponiveis') ?>?${params}`);
         const data = await res.json();
 
         this.availableRooms     = data.rooms           || [];
-        this.availableEquipment = data.equipment       || [];
+        this.availableResources = data.equipment       || [];
         this.filterResources    = data.room_resources  || [];
         this.modalRoom          = null;
 
-        // Remove from filter any resource no longer present in available rooms
-        // eslint-disable-next-line eqeqeq — intentional loose equality (checkbox value is string, API id is int)
-        this.equipmentFilter = this.equipmentFilter.filter(id =>
-          this.filterResources.some(r => r.id == id)
+        // Remove filter terms no longer present in available rooms
+        this.resourceTerms = this.resourceTerms.filter(term =>
+          this.filterResources.some(r => r.name === term)
         );
 
         if (this.step !== 2) this.step = 2;

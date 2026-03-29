@@ -159,4 +159,6 @@
   <?php endif; ?>
 </div>
 
+<!-- AUDITADO: sem vazamento de patrimônio para Solicitante em 2026-03-29 -->
+
 <?= $this->endSection() ?>

@@ -100,32 +100,25 @@
     </div>
     <?php endif; ?>
 
-    <!-- Equipment list -->
-    <?php if (!empty($equipment)): ?>
+    <!-- Grouped resource badges — no id/code (RN-R13/C5) -->
+    <?php if (!empty($groupedResources)): ?>
     <div class="card">
       <div class="card-body">
         <h2 class="font-semibold text-slate-900 mb-3">Recursos disponíveis</h2>
-        <ul class="space-y-2">
-          <?php foreach ($equipment as $eq): ?>
-          <li class="flex items-start gap-2 text-sm">
-            <svg class="w-4 h-4 text-primary mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>
-            </svg>
-            <div>
-              <span class="font-medium text-slate-900"><?= esc($eq['name']) ?></span>
-              <?php if (!empty($eq['code'])): ?>
-                <span class="text-slate-400 ml-1 text-xs">(<?= esc($eq['code']) ?>)</span>
+        <div class="flex flex-wrap gap-2">
+          <?php foreach ($groupedResources as $res): ?>
+            <span class="badge-secondary text-xs px-2.5 py-1">
+              <?= esc($res['name']) ?>
+              <?php if ((int)$res['total_quantity'] > 1): ?>
+                <span class="text-slate-400">(<?= (int)$res['total_quantity'] ?>)</span>
               <?php endif; ?>
-              <?php if (!empty($eq['description'])): ?>
-                <p class="text-xs text-slate-500 mt-0.5"><?= esc($eq['description']) ?></p>
-              <?php endif; ?>
-            </div>
-          </li>
+            </span>
           <?php endforeach; ?>
-        </ul>
+        </div>
       </div>
     </div>
     <?php endif; ?>
+    <!-- AUDITADO: sem vazamento de patrimônio para Solicitante em 2026-03-29 -->
 
   </div>
 

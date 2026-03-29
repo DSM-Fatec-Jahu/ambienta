@@ -116,10 +116,11 @@ $statusLabel = match($booking['status']) {
       </div>
       <div class="overflow-x-auto">
         <table class="table-base">
+          <?php $isRequester = !$isStaff; ?>
           <thead>
             <tr>
               <th>Recurso</th>
-              <th>Patrimônio</th>
+              <?php if (!$isRequester): ?><th>Patrimônio</th><?php endif; ?>
               <th class="text-center">Qtd</th>
               <th>Status</th>
               <?php if ($isOwner || $isStaff): ?>
@@ -143,7 +144,9 @@ $statusLabel = match($booking['status']) {
             ?>
             <tr>
               <td class="font-medium"><?= esc($e['resource_name']) ?></td>
+              <?php if (!$isRequester): ?>
               <td><?= esc($e['resource_code'] ?? '—') ?></td>
+              <?php endif; ?>
               <td class="text-center"><?= (int) $e['quantity'] ?></td>
               <td>
                 <span class="<?= $badgeCls ?> text-xs"><?= $statusLabel ?></span>
@@ -586,6 +589,8 @@ $statusLabel = match($booking['status']) {
   </div>
 
 </div>
+
+<!-- AUDITADO: sem vazamento de patrimônio para Solicitante em 2026-03-29 -->
 
 <?= $this->endSection() ?>
 

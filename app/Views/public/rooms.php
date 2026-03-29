@@ -6,6 +6,31 @@
   <p class="text-sm text-gray-500 mt-0.5">Consulte salas, laboratórios e outros espaços disponíveis</p>
 </div>
 
+<?php if (!empty($filterTerms)): ?>
+<form method="GET" action="" class="mb-6">
+  <div class="flex flex-wrap items-end gap-3">
+    <div class="flex-1 min-w-48">
+      <label class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">
+        Filtrar por recurso
+      </label>
+      <select name="resource_terms[]" multiple
+              class="w-full rounded-xl border border-gray-300 text-sm py-2 px-3 focus:ring-2 focus:ring-primary/40 focus:border-primary">
+        <?php foreach ($filterTerms as $t): ?>
+          <option value="<?= esc($t['term']) ?>"
+                  <?= in_array($t['term'], $selectedTerms ?? []) ? 'selected' : '' ?>>
+            <?= esc($t['term']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <button type="submit" class="btn-primary btn-sm">Filtrar</button>
+    <?php if (!empty($selectedTerms)): ?>
+      <a href="<?= base_url('ambientes') ?>" class="btn-secondary btn-sm">Limpar filtro</a>
+    <?php endif; ?>
+  </div>
+</form>
+<?php endif; ?>
+
 <?php if (empty($rooms)): ?>
   <div class="card p-12 text-center">
     <svg class="w-12 h-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -48,5 +73,7 @@
     <?php endforeach; ?>
   </div>
 <?php endif; ?>
+
+<!-- AUDITADO: sem vazamento de patrimônio para Solicitante em 2026-03-29 -->
 
 <?= $this->endSection() ?>

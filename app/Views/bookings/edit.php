@@ -129,11 +129,94 @@
   </div>
   <?php endif; ?>
 
+  <!-- Bloco 1: Recursos fixos do ambiente (somente leitura — RN-R02/RN-R13) -->
+  <?php if (!empty($groupedRoomResources)): ?>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="text-sm font-semibold text-slate-900">Recursos do ambiente</h2>
+    </div>
+    <div class="card-body">
+      <p class="form-hint mb-3">Recursos fixos deste ambiente — disponíveis automaticamente durante a reserva.</p>
+      <div class="flex flex-wrap gap-2">
+        <?php if ($isRequester): ?>
+          <?php foreach ($groupedRoomResources as $res): ?>
+            <span class="badge-secondary text-xs px-2.5 py-1">
+              <?= esc($res['name']) ?>
+              <?php if ((int)$res['total_quantity'] > 1): ?>
+                <span class="text-slate-400">(<?= (int)$res['total_quantity'] ?>)</span>
+              <?php endif; ?>
+            </span>
+          <?php endforeach; ?>
+        <?php else: ?>
+          <?php foreach ($groupedRoomResources as $eq): ?>
+            <span class="badge-secondary text-xs px-2.5 py-1">
+              <?= esc($eq['name']) ?>
+              <?php if (!empty($eq['code'])): ?>
+                <span class="text-slate-400 font-mono">#<?= esc($eq['code']) ?></span>
+              <?php endif; ?>
+              <span class="text-slate-400">(<?= (int)$eq['allocated_quantity'] ?> un.)</span>
+            </span>
+          <?php endforeach; ?>
+        <?php endif; ?>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
+  <!-- Bloco 2: Recursos adicionais já alocados — ajustar quantidades (RN-R14) -->
+  <?php if ($isRequester && !empty($existingResources)): ?>
+  <?php
+    // Group existing booking_resources by name+category for requester (no id/code)
+    $grouped = [];
+    foreach ($existingResources as $er) {
+        $key = ($er['resource_name'] ?? '') . '||' . ($er['resource_category'] ?? '');
+        if (!isset($grouped[$key])) {
+            $grouped[$key] = [
+                'name'     => $er['resource_name']     ?? '',
+                'category' => $er['resource_category'] ?? null,
+                'quantity' => 0,
+                'status'   => $er['status'],
+            ];
+        }
+        $grouped[$key]['quantity'] += (int)$er['quantity'];
+    }
+  ?>
+  <div class="card">
+    <div class="card-header">
+      <h2 class="text-sm font-semibold text-slate-900">Recursos adicionais solicitados</h2>
+    </div>
+    <div class="card-body space-y-2">
+      <p class="form-hint">Recursos do estoque geral já vinculados a esta reserva.</p>
+      <div class="divide-y divide-slate-100">
+        <?php foreach (array_values($grouped) as $idx => $res): ?>
+        <div class="flex items-center justify-between gap-3 py-2.5">
+          <div>
+            <span class="text-sm font-medium text-slate-800"><?= esc($res['name']) ?></span>
+            <?php if ($res['category']): ?>
+              <span class="text-xs text-slate-400 ml-1">(<?= esc($res['category']) ?>)</span>
+            <?php endif; ?>
+          </div>
+          <input type="number"
+                 name="resource_requests[<?= $idx ?>][quantity]"
+                 min="0"
+                 value="<?= (int)$res['quantity'] ?>"
+                 class="w-16 text-center border border-slate-300 rounded-lg text-sm p-1 focus:ring-2 focus:ring-primary/40 focus:border-primary">
+          <input type="hidden" name="resource_requests[<?= $idx ?>][name]"     value="<?= esc($res['name']) ?>">
+          <input type="hidden" name="resource_requests[<?= $idx ?>][category]" value="<?= esc($res['category'] ?? '') ?>">
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+  </div>
+  <?php endif; ?>
+
   <div class="flex gap-3">
     <button type="submit" class="btn-primary">Salvar alterações</button>
     <a href="<?= base_url('reservas/' . $booking['id']) ?>" class="btn-secondary">Cancelar</a>
   </div>
 
 </form>
+
+<!-- AUDITADO: sem vazamento de patrimônio para Solicitante em 2026-03-29 -->
 
 <?= $this->endSection() ?>

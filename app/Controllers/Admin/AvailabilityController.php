@@ -3,17 +3,24 @@
 namespace App\Controllers\Admin;
 
 use App\Controllers\BaseController;
+use App\Models\ResourceModel;
 
 class AvailabilityController extends BaseController
 {
     /**
      * Daily availability grid showing all rooms × time slots for a given date.
      * GET /admin/disponibilidade
+     *
+     * RN-R17: Dual filter — text terms for Solicitante, text OR ID toggle for Admin/Técnico.
      */
     public function index(): string
     {
         $institutionId = $this->institution['id'] ?? 0;
         $db            = db_connect();
+        $resourceModel = new ResourceModel();
+
+        $user        = $this->currentUser();
+        $isRequester = ($user['role'] === 'role_requester');
 
         $date = $this->request->getGet('date') ?? date('Y-m-d');
 
@@ -22,22 +29,25 @@ class AvailabilityController extends BaseController
             $date = date('Y-m-d');
         }
 
-        $buildingId     = (int) ($this->request->getGet('building_id') ?? 0);
-        $equipmentIds   = array_filter(array_map('intval', (array) ($this->request->getGet('equipment_ids') ?? [])));
+        $buildingId = (int) ($this->request->getGet('building_id') ?? 0);
+
+        // Text-based filter (all roles)
+        $resourceTerms = array_values(array_filter(
+            array_map('trim', (array) ($this->request->getGet('resource_terms') ?? []))
+        ));
+
+        // ID-based filter (Admin/Técnico only — RN-R17)
+        $resourceIds = [];
+        if (!$isRequester) {
+            $resourceIds = array_values(array_filter(
+                array_map('intval', (array) ($this->request->getGet('resource_ids') ?? []))
+            ));
+        }
 
         // Buildings for filter dropdown
         $buildings = $db->table('buildings')
             ->select('id, name')
             ->where('institution_id', $institutionId)
-            ->where('deleted_at IS NULL')
-            ->orderBy('name', 'ASC')
-            ->get()->getResultArray();
-
-        // Resources for filter dropdown
-        $equipmentList = $db->table('resources')
-            ->select('id, name')
-            ->where('institution_id', $institutionId)
-            ->where('is_active', 1)
             ->where('deleted_at IS NULL')
             ->orderBy('name', 'ASC')
             ->get()->getResultArray();
@@ -54,8 +64,29 @@ class AvailabilityController extends BaseController
             $roomBuilder->where('r.building_id', $buildingId);
         }
 
-        foreach ($equipmentIds as $eqId) {
-            $roomBuilder->where("EXISTS (SELECT 1 FROM room_resources rr WHERE rr.room_id = r.id AND rr.resource_id = {$eqId})");
+        // Apply text-based resource filter (RN-R12)
+        if (!empty($resourceTerms)) {
+            $allowedRoomIds = null;
+            foreach ($resourceTerms as $term) {
+                $ids            = $resourceModel->roomIdsHavingResource($institutionId, $term);
+                $allowedRoomIds = $allowedRoomIds === null
+                    ? $ids
+                    : array_values(array_intersect($allowedRoomIds, $ids));
+            }
+            if (empty($allowedRoomIds)) {
+                $allowedRoomIds = [0]; // force empty result
+            }
+            $roomBuilder->whereIn('r.id', $allowedRoomIds);
+        }
+
+        // Apply ID-based resource filter (Admin/Técnico only)
+        if (!empty($resourceIds)) {
+            foreach ($resourceIds as $resId) {
+                $roomBuilder->where(
+                    "EXISTS (SELECT 1 FROM room_resources rr WHERE rr.room_id = r.id AND rr.resource_id = ?)",
+                    $resId
+                );
+            }
         }
 
         $rooms = $roomBuilder->orderBy('b.name ASC, r.name ASC')->get()->getResultArray();
@@ -90,11 +121,24 @@ class AvailabilityController extends BaseController
         $isClosed = $oh && !$oh['is_open'];
 
         // Build hour slots array (full hours between dayOpen and dayClose)
-        $slots    = [];
-        $startH   = (int) explode(':', $dayOpen)[0];
-        $endH     = (int) explode(':', $dayClose)[0];
+        $slots  = [];
+        $startH = (int) explode(':', $dayOpen)[0];
+        $endH   = (int) explode(':', $dayClose)[0];
         for ($h = $startH; $h < $endH; $h++) {
             $slots[] = sprintf('%02d:00', $h);
+        }
+
+        $allResources = $isRequester ? [] : $resourceModel->activeForInstitution($institutionId);
+
+        // E1: Audit when text-based resource filter is applied (RN-R17)
+        if (!empty($resourceTerms)) {
+            service('audit')->log(
+                'availability.searched_by_term',
+                'availability',
+                null,
+                null,
+                ['date' => $date, 'terms' => $resourceTerms, 'building_id' => $buildingId ?: null]
+            );
         }
 
         return view('admin/availability/index', $this->viewData([
@@ -108,9 +152,16 @@ class AvailabilityController extends BaseController
             'isClosed'       => $isClosed,
             'totalBookings'  => count($bookings),
             'buildings'      => $buildings,
-            'equipmentList'  => $equipmentList,
             'buildingId'     => $buildingId,
-            'equipmentIds'   => $equipmentIds,
+            // New R8-B variables (used by R8-D view)
+            'isRequester'    => $isRequester,
+            'resourceTerms'  => $resourceTerms,
+            'resourceIds'    => $isRequester ? [] : $resourceIds,
+            'distinctTerms'  => $resourceModel->getDistinctCategoriesAndNames($institutionId),
+            'allResources'   => $allResources,
+            // Legacy variables kept for current view until R8-D is applied
+            'equipmentList'  => $allResources,
+            'equipmentIds'   => $isRequester ? [] : $resourceIds,
         ]));
     }
 }

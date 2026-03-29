@@ -124,43 +124,76 @@ class BookingsController extends BaseController
     public function availableRooms(): \CodeIgniter\HTTP\ResponseInterface
     {
         $institutionId = $this->institution['id'] ?? 0;
-        $date          = $this->request->getGet('date') ?? '';
+        $date          = $this->request->getGet('date')       ?? '';
         $startTime     = $this->request->getGet('start_time') ?? '';
-        $endTime       = $this->request->getGet('end_time') ?? '';
-        $equipmentIds  = array_values(array_filter(
+        $endTime       = $this->request->getGet('end_time')   ?? '';
+
+        // New parameter — text search (RN-R12)
+        $resourceTerms = array_values(array_filter(
+            array_map('trim', (array) ($this->request->getGet('resource_terms') ?? []))
+        ));
+
+        // Legacy parameter — search by ID (Admin/Técnico)
+        $equipmentIds = array_values(array_filter(
             array_map('intval', (array) ($this->request->getGet('equipment_ids') ?? []))
         ));
 
         if (!$date || !$startTime || !$endTime || $startTime >= $endTime) {
-            return $this->response->setJSON(['rooms' => [], 'equipment' => []]);
+            return $this->response->setJSON(['rooms' => [], 'equipment' => [], 'room_resources' => []]);
         }
 
-        $rooms = $this->rooms->availableForSlot($institutionId, $date, $startTime, $endTime, $equipmentIds);
+        $rooms = $this->rooms->availableForSlot(
+            $institutionId, $date, $startTime, $endTime,
+            $equipmentIds,
+            $resourceTerms
+        );
 
-        // Attach each room's allocated resources and build filter list
+        // Attach resources — grouped (no id/code) for requester, detailed for admin (RN-R13)
+        $user          = $this->currentUser();
+        $isRequester   = ($user['role'] === 'role_requester');
         $seen          = [];
         $roomResources = [];
-        foreach ($rooms as &$room) {
-            $allocated        = $this->resources->allocatedToRoom((int) $room['id']);
-            $room['resources'] = array_map(fn($r) => [
-                'id'                 => (int) $r['id'],
-                'name'               => $r['name'],
-                'code'               => $r['code'] ?? '',
-                'allocated_quantity' => (int) $r['allocated_quantity'],
-            ], $allocated);
 
-            foreach ($room['resources'] as $res) {
-                if (!isset($seen[$res['id']])) {
-                    $seen[$res['id']] = true;
-                    $roomResources[]  = $res;
+        foreach ($rooms as &$room) {
+            if ($isRequester) {
+                $allocated         = $this->resources->getGroupedByRoom((int) $room['id']);
+                $room['resources'] = $allocated;
+                foreach ($allocated as $res) {
+                    $key = $res['name'] . '||' . ($res['category'] ?? '');
+                    if (!isset($seen[$key])) {
+                        $seen[$key]      = true;
+                        $roomResources[] = $res;
+                    }
+                }
+            } else {
+                $allocated         = $this->resources->allocatedToRoom((int) $room['id']);
+                $room['resources'] = array_map(fn($r) => [
+                    'id'                 => (int) $r['id'],
+                    'name'               => $r['name'],
+                    'code'               => $r['code'] ?? '',
+                    'allocated_quantity' => (int) $r['allocated_quantity'],
+                ], $allocated);
+                foreach ($room['resources'] as $res) {
+                    if (!isset($seen[$res['id']])) {
+                        $seen[$res['id']] = true;
+                        $roomResources[]  = $res;
+                    }
                 }
             }
         }
         unset($room);
         usort($roomResources, fn($a, $b) => strcmp($a['name'], $b['name']));
 
-        // General-stock resources for the optional lending section (Step 3)
-        $resources = $this->resources->availableForBookingSlot($institutionId, $date, $startTime, $endTime);
+        // General-stock resources for Step 3 of the form
+        if ($isRequester) {
+            $resources = $this->resources->getGroupedGeneralStock(
+                $institutionId, $date, $startTime, $endTime
+            );
+        } else {
+            $resources = $this->resources->availableForBookingSlot(
+                $institutionId, $date, $startTime, $endTime
+            );
+        }
 
         return $this->response->setJSON([
             'rooms'          => $rooms,
@@ -376,6 +409,42 @@ class BookingsController extends BaseController
             }
         }
 
+        // Process generic resource requests via AllocationService (RN-R14/R15/R16)
+        $resourceRequests = $this->request->getPost('resource_requests') ?? [];
+        if (!empty($resourceRequests)) {
+            $allocationService = new \App\Services\ResourceAllocationService();
+            $allocationErrors  = [];
+
+            foreach ($resourceRequests as $req) {
+                $reqName     = trim($req['name']     ?? '');
+                $reqCategory = trim($req['category'] ?? '');
+                $reqQty      = max(1, (int) ($req['quantity'] ?? 1));
+
+                if ($reqQty === 0 || (empty($reqName) && empty($reqCategory))) {
+                    continue;
+                }
+
+                try {
+                    $allocationService->resolve(
+                        $institutionId,
+                        $reqName,
+                        $reqCategory,
+                        $reqQty,
+                        $date,
+                        $startTime,
+                        $endTime,
+                        (int) $bookingId
+                    );
+                } catch (\App\Exceptions\ResourceUnavailableException $e) {
+                    $allocationErrors[] = $e->getMessage();
+                }
+            }
+
+            if (!empty($allocationErrors)) {
+                session()->setFlashdata('resource_warnings', $allocationErrors);
+            }
+        }
+
         service('audit')->log('booking.created', 'booking', (int) $bookingId);
 
         if ($bookedByUserId) {
@@ -587,12 +656,25 @@ class BookingsController extends BaseController
         $institutionId = $this->institution['id'] ?? 0;
         $rooms         = $this->rooms->activeForInstitution($institutionId);
         $room          = $this->rooms->find($booking['room_id']);
+        $user          = $this->currentUser();
+        $isRequester   = $user['role'] === 'role_requester';
+
+        // Bloco 1: grouped room resources for requester view (RN-R13)
+        $groupedRoomResources = $isRequester
+            ? $this->resources->getGroupedByRoom((int) $booking['room_id'])
+            : $this->resources->allocatedToRoom((int) $booking['room_id']);
+
+        // Bloco 2: existing general-stock resource allocations for this booking
+        $existingResources = $this->bookingResources->forBooking((int) $booking['id']);
 
         return view('bookings/edit', $this->viewData([
-            'pageTitle' => 'Editar Reserva',
-            'booking'   => $booking,
-            'rooms'     => $rooms,
-            'room'      => $room,
+            'pageTitle'            => 'Editar Reserva',
+            'booking'              => $booking,
+            'rooms'                => $rooms,
+            'room'                 => $room,
+            'isRequester'          => $isRequester,
+            'groupedRoomResources' => $groupedRoomResources,
+            'existingResources'    => $existingResources,
         ]));
     }
 
@@ -703,6 +785,46 @@ class BookingsController extends BaseController
         $this->bookings->update($id, $updateData);
 
         service('audit')->log('booking.updated', 'booking', $id, $old, $updateData);
+
+        // Process generic resource requests via AllocationService (RN-R14)
+        $resourceRequests = $this->request->getPost('resource_requests') ?? [];
+        if (!empty($resourceRequests)) {
+            $effectiveDate  = $updateData['date']       ?? $booking['date'];
+            $effectiveStart = $updateData['start_time'] ?? $booking['start_time'];
+            $effectiveEnd   = $updateData['end_time']   ?? $booking['end_time'];
+
+            $allocationService = new \App\Services\ResourceAllocationService();
+            $allocationErrors  = [];
+
+            foreach ($resourceRequests as $req) {
+                $reqName     = trim($req['name']     ?? '');
+                $reqCategory = trim($req['category'] ?? '');
+                $reqQty      = (int) ($req['quantity'] ?? 0);
+
+                if ($reqQty <= 0 || (empty($reqName) && empty($reqCategory))) {
+                    continue;
+                }
+
+                try {
+                    $allocationService->resolve(
+                        $institutionId,
+                        $reqName,
+                        $reqCategory,
+                        $reqQty,
+                        $effectiveDate,
+                        $effectiveStart,
+                        $effectiveEnd,
+                        $id
+                    );
+                } catch (\App\Exceptions\ResourceUnavailableException $e) {
+                    $allocationErrors[] = $e->getMessage();
+                }
+            }
+
+            if (!empty($allocationErrors)) {
+                session()->setFlashdata('resource_warnings', $allocationErrors);
+            }
+        }
 
         return redirect()->to(base_url('reservas/' . $id))
             ->with('success', 'Reserva atualizada com sucesso.');

@@ -35,49 +35,93 @@
   </div>
   <?php endif; ?>
 
-  <!-- Equipment filter -->
-  <?php if (!empty($equipmentList)): ?>
-  <div x-data="{ open: false }" class="relative">
-    <label class="form-label">Recursos</label>
-    <button type="button" @click="open = !open"
-            class="form-input w-52 text-left flex items-center justify-between">
-      <span class="truncate text-sm">
-        <?php
-          $eqNames = array_filter(array_map(function($e) use ($equipmentIds) {
-            return in_array($e['id'], $equipmentIds) ? esc($e['name']) : null;
-          }, $equipmentList));
-          echo !empty($eqNames) ? implode(', ', $eqNames) : 'Todos os recursos';
-        ?>
-      </span>
-      <svg class="w-4 h-4 shrink-0 ml-1 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/>
-      </svg>
-    </button>
-    <div x-show="open" @click.outside="open = false" x-cloak
-         class="absolute z-30 mt-1 w-64 bg-white border border-slate-200 rounded-lg shadow-lg p-2 max-h-60 overflow-y-auto">
-      <?php foreach ($equipmentList as $eq): ?>
-      <label class="flex items-center gap-2 px-2 py-1.5 rounded hover:bg-slate-50 cursor-pointer text-sm">
-        <input type="checkbox" name="equipment_ids[]" value="<?= $eq['id'] ?>"
-               <?= in_array($eq['id'], $equipmentIds) ? 'checked' : '' ?>
-               class="rounded text-primary">
-        <span><?= esc($eq['name']) ?></span>
-      </label>
+  <!-- Resource filter — RN-R17: text-only for Solicitante, toggle for Admin/Técnico -->
+  <?php if (!empty($distinctTerms) || !empty($allResources)): ?>
+  <?php if ($isRequester): ?>
+  <!-- Solicitante: text-only filter (no IDs) -->
+  <div>
+    <label class="form-label">Filtrar por recurso</label>
+    <select name="resource_terms[]" multiple
+            class="form-input w-52 text-sm">
+      <?php foreach ($distinctTerms as $term): ?>
+        <option value="<?= esc($term['term']) ?>"
+                <?= in_array($term['term'], $resourceTerms) ? 'selected' : '' ?>>
+          <?= esc($term['term']) ?>
+        </option>
       <?php endforeach; ?>
+    </select>
+  </div>
+  <?php else: ?>
+  <!-- Admin/Técnico: toggle between text and patrimônio filter -->
+  <?php
+    $initialMode = (!empty($resourceTerms)) ? 'text' : ((!empty($resourceIds)) ? 'id' : 'text');
+  ?>
+  <div x-data="{ filterMode: '<?= $initialMode ?>' }">
+    <div class="flex items-center gap-2 mb-1.5">
+      <label class="form-label mb-0">Filtrar por recurso</label>
+      <div class="flex rounded-lg border border-slate-200 overflow-hidden text-2xs ml-auto">
+        <button type="button"
+                :class="filterMode === 'text' ? 'bg-primary text-white' : 'bg-white text-slate-500'"
+                @click="filterMode = 'text'"
+                class="px-2.5 py-1 transition-colors font-medium">
+          Nome/categoria
+        </button>
+        <button type="button"
+                :class="filterMode === 'id' ? 'bg-primary text-white' : 'bg-white text-slate-500'"
+                @click="filterMode = 'id'"
+                class="px-2.5 py-1 transition-colors font-medium">
+          Patrimônio
+        </button>
+      </div>
+    </div>
+    <!-- Modo texto -->
+    <div x-show="filterMode === 'text'" x-cloak>
+      <select name="resource_terms[]" multiple
+              class="form-input w-52 text-sm">
+        <?php foreach ($distinctTerms as $term): ?>
+          <option value="<?= esc($term['term']) ?>"
+                  <?= in_array($term['term'], $resourceTerms) ? 'selected' : '' ?>>
+            <?= esc($term['term']) ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
+    </div>
+    <!-- Modo patrimônio -->
+    <div x-show="filterMode === 'id'" x-cloak>
+      <select name="resource_ids[]" multiple
+              class="form-input w-52 text-sm">
+        <?php foreach ($allResources as $res): ?>
+          <option value="<?= (int) $res['id'] ?>"
+                  <?= in_array($res['id'], $resourceIds) ? 'selected' : '' ?>>
+            <?= esc($res['name']) ?><?= !empty($res['code']) ? ' — ' . esc($res['code']) : '' ?>
+          </option>
+        <?php endforeach; ?>
+      </select>
     </div>
   </div>
+  <?php endif; ?>
   <?php endif; ?>
 
   <!-- Actions -->
   <div class="flex items-center gap-2">
     <button type="submit" class="btn-primary">Ver disponibilidade</button>
     <a href="?date=<?= date('Y-m-d') ?>" class="btn-secondary">Hoje</a>
-    <a href="?date=<?= date('Y-m-d', strtotime($date . ' -1 day')) ?><?= $buildingId ? '&building_id='.$buildingId : '' ?><?= !empty($equipmentIds) ? '&'.http_build_query(['equipment_ids' => $equipmentIds]) : '' ?>"
+    <?php
+      $navExtra = $buildingId ? '&building_id='.$buildingId : '';
+      if (!empty($resourceTerms)) {
+          $navExtra .= '&' . http_build_query(['resource_terms' => $resourceTerms]);
+      }
+      if (!$isRequester && !empty($resourceIds)) {
+          $navExtra .= '&' . http_build_query(['resource_ids' => $resourceIds]);
+      }
+    ?>
+    <a href="?date=<?= date('Y-m-d', strtotime($date . ' -1 day')) ?><?= $navExtra ?>"
        class="btn-ghost btn-sm p-2" title="Dia anterior">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/>
       </svg>
     </a>
-    <a href="?date=<?= date('Y-m-d', strtotime($date . ' +1 day')) ?><?= $buildingId ? '&building_id='.$buildingId : '' ?><?= !empty($equipmentIds) ? '&'.http_build_query(['equipment_ids' => $equipmentIds]) : '' ?>"
+    <a href="?date=<?= date('Y-m-d', strtotime($date . ' +1 day')) ?><?= $navExtra ?>"
        class="btn-ghost btn-sm p-2" title="Próximo dia">
       <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/>
@@ -99,7 +143,7 @@
     <p class="text-2xs text-slate-400 uppercase tracking-wide font-semibold">Salas</p>
     <p class="text-lg font-bold text-slate-800 mt-1"><?= count($rooms) ?></p>
     <p class="text-xs text-slate-400">
-      <?= ($buildingId || !empty($equipmentIds)) ? 'filtradas' : 'ativas' ?>
+      <?= ($buildingId || !empty($resourceTerms) || !empty($resourceIds)) ? 'filtradas' : 'ativas' ?>
     </p>
   </div>
   <div class="card card-body">
@@ -305,5 +349,7 @@ function availGrid() {
 </script>
 
 <?php endif; ?>
+
+<!-- AUDITADO: sem vazamento de patrimônio para Solicitante em 2026-03-29 -->
 
 <?= $this->endSection() ?>

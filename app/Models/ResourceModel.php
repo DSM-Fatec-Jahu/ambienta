@@ -184,6 +184,99 @@ class ResourceModel extends Model
         return $countBooking > 0;
     }
 
+    // ── Grouping queries (Sprint R8) ──────────────────────────────────────────
+
+    /**
+     * Returns resources allocated to a room, grouped by name+category (no id/code).
+     * Used for requester-facing views (RN-R13).
+     *
+     * @return array<array{name: string, category: string|null, total_quantity: int}>
+     */
+    public function getGroupedByRoom(int $roomId): array
+    {
+        return $this->db->table('room_resources rr')
+            ->select('r.name, r.category, SUM(rr.quantity) AS total_quantity')
+            ->join('resources r', 'r.id = rr.resource_id')
+            ->where('rr.room_id', $roomId)
+            ->where('r.is_active', 1)
+            ->where('r.deleted_at IS NULL')
+            ->groupBy('r.name, r.category')
+            ->orderBy('r.name', 'ASC')
+            ->get()->getResultArray();
+    }
+
+    /**
+     * Returns general-stock resources available for a slot, grouped by name+category (no id/code).
+     * Used for requester-facing views (RN-R13).
+     *
+     * @return array<array{name: string, category: string|null, available_qty: int}>
+     */
+    public function getGroupedGeneralStock(
+        int    $institutionId,
+        string $date,
+        string $startTime,
+        string $endTime
+    ): array {
+        $raw     = $this->availableForBookingSlot($institutionId, $date, $startTime, $endTime);
+        $grouped = [];
+
+        foreach ($raw as $item) {
+            $key = $item['name'] . '||' . ($item['category'] ?? '');
+            if (!isset($grouped[$key])) {
+                $grouped[$key] = [
+                    'name'          => $item['name'],
+                    'category'      => $item['category'] ?? null,
+                    'available_qty' => 0,
+                ];
+            }
+            $grouped[$key]['available_qty'] += (int) $item['available_qty'];
+        }
+
+        return array_values(array_filter($grouped, fn($g) => $g['available_qty'] > 0));
+    }
+
+    /**
+     * Returns room IDs that contain at least one resource matching the given term.
+     * Matches exact category (case-insensitive) OR partial name (RN-R12).
+     *
+     * @return int[]
+     */
+    public function roomIdsHavingResource(int $institutionId, string $term): array
+    {
+        $rows = $this->db->table('room_resources rr')
+            ->select('rr.room_id')
+            ->distinct()
+            ->join('resources r', 'r.id = rr.resource_id')
+            ->where('r.institution_id', $institutionId)
+            ->where('r.is_active', 1)
+            ->where('r.deleted_at IS NULL')
+            ->groupStart()
+                ->where('r.category', $term)
+                ->orLike('r.name', $term, 'both')
+            ->groupEnd()
+            ->get()->getResultArray();
+
+        return array_map('intval', array_column($rows, 'room_id'));
+    }
+
+    /**
+     * Returns a unified list of distinct categories and names for use as filter terms.
+     * Used in availability/booking filter dropdowns (RN-R12).
+     *
+     * @return array<array{term: string, type: string}>
+     */
+    public function getDistinctCategoriesAndNames(int $institutionId): array
+    {
+        return $this->db->table('resources')
+            ->select("DISTINCT COALESCE(category, name) AS term,
+                      CASE WHEN category IS NOT NULL THEN 'category' ELSE 'name' END AS type")
+            ->where('institution_id', $institutionId)
+            ->where('is_active', 1)
+            ->where('deleted_at IS NULL')
+            ->orderBy('term', 'ASC')
+            ->get()->getResultArray();
+    }
+
     /**
      * Compatibility: returns active equipment with available quantity for a booking slot.
      * Updated to use new table/column names.
