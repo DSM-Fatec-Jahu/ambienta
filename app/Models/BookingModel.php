@@ -221,6 +221,44 @@ class BookingModel extends Model
             ->get()->getResultArray();
     }
 
+    // ── Search / pagination ──────────────────────────────────────────
+
+    public function search(int $userId, string $q, string $status, int $roomId, int $limit, int $offset): array
+    {
+        return $this->_searchQuery($userId, $q, $status, $roomId)
+            ->orderBy('bk.date DESC, bk.start_time DESC')
+            ->limit($limit, $offset)
+            ->get()->getResultArray();
+    }
+
+    public function searchCount(int $userId, string $q, string $status, int $roomId): int
+    {
+        return (int) $this->_searchQuery($userId, $q, $status, $roomId)
+            ->countAllResults();
+    }
+
+    private function _searchQuery(int $userId, string $q, string $status, int $roomId): \CodeIgniter\Database\BaseBuilder
+    {
+        $qb = $this->db->table('bookings bk')
+            ->select('bk.*, r.name AS room_name, r.code AS room_code, b.name AS building_name, u.name AS reviewer_name')
+            ->join('rooms r', 'r.id = bk.room_id', 'left')
+            ->join('buildings b', 'b.id = r.building_id', 'left')
+            ->join('users u', 'u.id = bk.reviewer_id', 'left')
+            ->where('bk.owner_id', $userId)
+            ->where('bk.deleted_at IS NULL');
+
+        if ($q !== '') {
+            $qb->groupStart()
+                ->like('bk.title', $q)
+            ->groupEnd();
+        }
+
+        if ($roomId > 0)   { $qb->where('bk.room_id', $roomId); }
+        if ($status !== '') { $qb->where('bk.status', $status); }
+
+        return $qb;
+    }
+
     // ── Analytics ────────────────────────────────────────────────────
 
     /**

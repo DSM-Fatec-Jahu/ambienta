@@ -42,7 +42,7 @@ class BookingResourceController extends BaseController
 
     public function index(): string
     {
-        $institutionId = $this->institution['id'] ?? 0;
+        $institutionId = (int) ($this->institution['id'] ?? 0);
 
         $pending             = $this->bookingResources->pendingForInstitution($institutionId);
         $awaitingReturn      = $this->bookingResources->awaitingReturnForInstitution($institutionId);
@@ -60,7 +60,7 @@ class BookingResourceController extends BaseController
 
     public function approve(int $id): \CodeIgniter\HTTP\RedirectResponse
     {
-        $institutionId = $this->institution['id'] ?? 0;
+        $institutionId = (int) ($this->institution['id'] ?? 0);
         $reviewer      = $this->currentUser();
 
         $br = $this->bookingResources->findWithDetails($id);
@@ -118,7 +118,7 @@ class BookingResourceController extends BaseController
 
     public function reject(int $id): \CodeIgniter\HTTP\RedirectResponse
     {
-        $institutionId = $this->institution['id'] ?? 0;
+        $institutionId = (int) ($this->institution['id'] ?? 0);
         $reviewer      = $this->currentUser();
 
         $br = $this->bookingResources->findWithDetails($id);
@@ -181,7 +181,7 @@ class BookingResourceController extends BaseController
      */
     public function returnResource(int $id): \CodeIgniter\HTTP\RedirectResponse
     {
-        $institutionId = $this->institution['id'] ?? 0;
+        $institutionId = (int) ($this->institution['id'] ?? 0);
         $user          = $this->currentUser();
 
         $br = $this->bookingResources->findWithDetails($id);
@@ -259,7 +259,7 @@ class BookingResourceController extends BaseController
      */
     public function confirmReturn(int $id): \CodeIgniter\HTTP\RedirectResponse
     {
-        $institutionId = $this->institution['id'] ?? 0;
+        $institutionId = (int) ($this->institution['id'] ?? 0);
         $technician    = $this->currentUser();
 
         $br = $this->bookingResources->findWithDetails($id);
@@ -325,7 +325,7 @@ class BookingResourceController extends BaseController
      */
     public function rejectReturn(int $id): \CodeIgniter\HTTP\RedirectResponse
     {
-        $institutionId = $this->institution['id'] ?? 0;
+        $institutionId = (int) ($this->institution['id'] ?? 0);
         $technician    = $this->currentUser();
 
         $br = $this->bookingResources->findWithDetails($id);

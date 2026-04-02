@@ -48,19 +48,33 @@ abstract class BaseController extends Controller
         $settings = $this->institution['settings_decoded'] ?? [];
         $user     = $this->currentUser();
 
-        // Sidebar pending badge — only for staff roles, lazy-loaded from DB
-        $pendingBadge = 0;
-        $staffRoles   = ['role_technician','role_coordinator','role_vice_director','role_director','role_admin'];
+        // Sidebar pending badges — only for staff roles, lazy-loaded from DB
+        $pendingBadge         = 0;
+        $pendingResourceBadge = 0;
+        $staffRoles = ['role_technician','role_coordinator','role_vice_director','role_director','role_admin'];
         if ($user && in_array($user['role'] ?? '', $staffRoles)) {
+            $institutionId = (int) ($this->institution['id'] ?? 0);
             try {
-                $pendingBadge = (int) db_connect()
+                $db = db_connect();
+
+                $pendingBadge = (int) $db
                     ->table('bookings')
-                    ->where('institution_id', $this->institution['id'] ?? 0)
+                    ->where('institution_id', $institutionId)
                     ->where('status', 'pending')
                     ->where('deleted_at IS NULL')
                     ->countAllResults();
+
+                $pendingResourceBadge = (int) $db
+                    ->table('booking_resources br')
+                    ->join('bookings bk', 'bk.id = br.booking_id')
+                    ->where('bk.institution_id', $institutionId)
+                    ->where('bk.deleted_at IS NULL')
+                    ->where('br.status', 'pending')
+                    ->where('br.resource_id NOT IN (SELECT rr.resource_id FROM room_resources rr WHERE rr.room_id = bk.room_id)')
+                    ->countAllResults();
             } catch (\Throwable) {
-                $pendingBadge = 0;
+                $pendingBadge         = 0;
+                $pendingResourceBadge = 0;
             }
         }
 
@@ -74,8 +88,9 @@ abstract class BaseController extends Controller
                 'role_director'      => 'Diretor',
                 'role_admin'         => 'Administrador',
             ],
-            'currentUser'  => $user,
-            'pendingBadge' => $pendingBadge,
+            'currentUser'         => $user,
+            'pendingBadge'        => $pendingBadge,
+            'pendingResourceBadge'=> $pendingResourceBadge,
         ], $extra);
     }
 

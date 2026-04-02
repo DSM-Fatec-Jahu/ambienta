@@ -124,6 +124,43 @@ class UserModel extends Model
         ]);
     }
 
+    // ── Search / pagination ──────────────────────────────────────────
+
+    public function search(int $institutionId, string $q, string $role, int $status, int $limit, int $offset): array
+    {
+        return $this->_searchQuery($institutionId, $q, $role, $status)
+            ->orderBy('t.name', 'ASC')
+            ->limit($limit, $offset)
+            ->get()->getResultArray();
+    }
+
+    public function searchCount(int $institutionId, string $q, string $role, int $status): int
+    {
+        return (int) $this->_searchQuery($institutionId, $q, $role, $status)
+            ->countAllResults();
+    }
+
+    private function _searchQuery(int $institutionId, string $q, string $role, int $status): \CodeIgniter\Database\BaseBuilder
+    {
+        $qb = $this->db->table('users t')
+            ->select('t.id, t.name, t.email, t.role, t.is_active, t.google_id, t.avatar_url, t.created_at, t.last_login_at')
+            ->where('t.institution_id', $institutionId)
+            ->where('t.deleted_at IS NULL');
+
+        if ($q !== '') {
+            $qb->groupStart()
+                ->like('t.name', $q)
+                ->orLike('t.email', $q)
+            ->groupEnd();
+        }
+
+        if ($role !== '')  { $qb->where('t.role', $role); }
+        if ($status === 1) { $qb->where('t.is_active', 1); }
+        elseif ($status === 2) { $qb->where('t.is_active', 0); }
+
+        return $qb;
+    }
+
     // ── SSO helper ──────────────────────────────────────────────────
 
     /**

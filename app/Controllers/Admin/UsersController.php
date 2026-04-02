@@ -28,30 +28,126 @@ class UsersController extends BaseController
 
     public function index(): string
     {
-        $institutionId = $this->institution['id'] ?? 0;
-
-        $search = $this->request->getGet('q');
-
-        $query = $this->users->where('institution_id', $institutionId);
-
-        if ($search) {
-            $query->groupStart()
-                ->like('name', $search)
-                ->orLike('email', $search)
-                ->groupEnd();
-        }
-
-        $items = $query->orderBy('name', 'ASC')->findAll();
-
+        $institutionId  = $this->institution['id'] ?? 0;
         $pendingInvites = $this->invites->pendingForInstitution($institutionId);
 
         return view('admin/users/index', $this->viewData([
             'pageTitle'      => 'Usuários',
-            'items'          => $items,
             'rolesList'      => self::ROLES,
-            'search'         => $search,
             'pendingInvites' => $pendingInvites,
         ]));
+    }
+
+    public function data(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+
+        $page   = max(1, (int) ($this->request->getGet('page')    ?? 1));
+        $q      = trim($this->request->getGet('q')                ?? '');
+        $role   = trim($this->request->getGet('role')             ?? '');
+        $status = (int) ($this->request->getGet('status')         ?? 0);
+        $limit  = in_array((int) ($this->request->getGet('limit') ?? 10), [10, 25, 50, 100])
+                      ? (int) $this->request->getGet('limit') : 10;
+        $offset = ($page - 1) * $limit;
+
+        $rows  = $this->users->search($institutionId, $q, $role, $status, $limit, $offset);
+        $total = $this->users->searchCount($institutionId, $q, $role, $status);
+
+        foreach ($rows as &$r) {
+            $r['id']        = (int)  $r['id'];
+            $r['is_active'] = (bool) $r['is_active'];
+        }
+        unset($r);
+
+        return $this->response->setJSON([
+            'data'  => $rows,
+            'total' => $total,
+            'page'  => $page,
+            'pages' => (int) ceil($total / $limit),
+            'limit' => $limit,
+        ]);
+    }
+
+    public function exportXlsx(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $q      = trim($this->request->getGet('q')      ?? '');
+        $role   = trim($this->request->getGet('role')   ?? '');
+        $status = (int) ($this->request->getGet('status') ?? 0);
+
+        $rows = $this->users->search($institutionId, $q, $role, $status, 5000, 0);
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet       = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Usuários');
+
+        $sheet->fromArray(['Nome', 'E-mail', 'Perfil', 'SSO', 'Status'], null, 'A1');
+        $sheet->getStyle('A1:E1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                       'startColor' => ['rgb' => '1E40AF']],
+        ]);
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $sheet->fromArray([
+                $r['name'],
+                $r['email'],
+                self::ROLES[$r['role']] ?? $r['role'],
+                $r['google_id'] ? 'Google' : 'Local',
+                $r['is_active'] ? 'Ativo' : 'Inativo',
+            ], null, 'A' . $row);
+
+            if ($row % 2 === 0) {
+                $sheet->getStyle('A' . $row . ':E' . $row)
+                    ->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('F8FAFC');
+            }
+            $row++;
+        }
+
+        foreach (range('A', 'E') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', 'attachment; filename="usuarios_' . date('Y-m-d') . '.xlsx"')
+            ->setHeader('Cache-Control', 'max-age=0')
+            ->setBody($content);
+    }
+
+    public function exportPdf(): void
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $q      = trim($this->request->getGet('q')      ?? '');
+        $role   = trim($this->request->getGet('role')   ?? '');
+        $status = (int) ($this->request->getGet('status') ?? 0);
+
+        $rows = $this->users->search($institutionId, $q, $role, $status, 5000, 0);
+
+        $html = view('admin/users/pdf_export', [
+            'rows'        => $rows,
+            'institution' => $this->institution,
+            'rolesList'   => self::ROLES,
+            'generatedAt' => date('d/m/Y H:i'),
+        ]);
+
+        $options = new \Dompdf\Options();
+        $options->setChroot(ROOTPATH);
+        $options->setIsRemoteEnabled(false);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        $dompdf->stream('usuarios_' . date('Y-m-d') . '.pdf', ['Attachment' => true]);
+        exit;
     }
 
     public function updateRole(int $id): \CodeIgniter\HTTP\RedirectResponse

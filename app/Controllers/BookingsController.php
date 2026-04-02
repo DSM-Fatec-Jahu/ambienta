@@ -45,10 +45,7 @@ class BookingsController extends BaseController
     public function index(): string
     {
         $user          = $this->currentUser();
-        $filter        = $this->request->getGet('status') ?? '';
         $institutionId = $this->institution['id'] ?? 0;
-
-        $items = $this->bookings->forUser((int) $user['id'], $filter);
 
         // RN-R08 / Sprint R5 — overdue return banner for requesters
         $overdueReturnCount = 0;
@@ -61,12 +58,141 @@ class BookingsController extends BaseController
             );
         }
 
+        $rooms = $this->rooms->activeForInstitution($institutionId);
+
         return view('bookings/index', $this->viewData([
             'pageTitle'          => 'Minhas Reservas',
-            'items'              => $items,
-            'filter'             => $filter,
             'overdueReturnCount' => $overdueReturnCount,
+            'rooms'              => $rooms,
         ]));
+    }
+
+    public function data(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $user   = $this->currentUser();
+        $userId = (int) $user['id'];
+
+        $page   = max(1, (int) ($this->request->getGet('page')    ?? 1));
+        $q      = trim($this->request->getGet('q')                ?? '');
+        $status = trim($this->request->getGet('status')           ?? '');
+        $roomId = (int) ($this->request->getGet('room_id')        ?? 0);
+        $limit  = in_array((int) ($this->request->getGet('limit') ?? 10), [10, 25, 50, 100])
+                      ? (int) $this->request->getGet('limit') : 10;
+        $offset = ($page - 1) * $limit;
+
+        $rows  = $this->bookings->search($userId, $q, $status, $roomId, $limit, $offset);
+        $total = $this->bookings->searchCount($userId, $q, $status, $roomId);
+
+        foreach ($rows as &$r) {
+            $r['id']             = (int)  $r['id'];
+            $r['room_id']        = (int)  $r['room_id'];
+            $r['attendees_count'] = (int) $r['attendees_count'];
+        }
+        unset($r);
+
+        return $this->response->setJSON([
+            'data'  => $rows,
+            'total' => $total,
+            'page'  => $page,
+            'pages' => (int) ceil($total / $limit),
+            'limit' => $limit,
+        ]);
+    }
+
+    public function exportXlsx(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $user   = $this->currentUser();
+        $userId = (int) $user['id'];
+
+        $q      = trim($this->request->getGet('q')         ?? '');
+        $status = trim($this->request->getGet('status')    ?? '');
+        $roomId = (int) ($this->request->getGet('room_id') ?? 0);
+
+        $rows = $this->bookings->search($userId, $q, $status, $roomId, 5000, 0);
+
+        $statusLabel = static fn(string $s): string => match($s) {
+            'approved'  => 'Aprovada',
+            'rejected'  => 'Recusada',
+            'cancelled' => 'Cancelada',
+            'absent'    => 'Ausente',
+            default     => 'Pendente',
+        };
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet       = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Reservas');
+
+        $sheet->fromArray(['Título', 'Ambiente', 'Prédio', 'Data', 'Horário', 'Status'], null, 'A1');
+        $sheet->getStyle('A1:F1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                       'startColor' => ['rgb' => '1E40AF']],
+        ]);
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $horario = substr($r['start_time'], 0, 5) . ' – ' . substr($r['end_time'], 0, 5);
+            $date    = $r['date'] ? date('d/m/Y', strtotime($r['date'])) : '';
+            $sheet->fromArray([
+                $r['title'],
+                $r['room_name']     ?? '',
+                $r['building_name'] ?? '',
+                $date,
+                $horario,
+                $statusLabel($r['status']),
+            ], null, 'A' . $row);
+
+            if ($row % 2 === 0) {
+                $sheet->getStyle('A' . $row . ':F' . $row)
+                    ->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('F8FAFC');
+            }
+            $row++;
+        }
+
+        foreach (range('A', 'F') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', 'attachment; filename="reservas_' . date('Y-m-d') . '.xlsx"')
+            ->setHeader('Cache-Control', 'max-age=0')
+            ->setBody($content);
+    }
+
+    public function exportPdf(): void
+    {
+        $user   = $this->currentUser();
+        $userId = (int) $user['id'];
+
+        $q      = trim($this->request->getGet('q')         ?? '');
+        $status = trim($this->request->getGet('status')    ?? '');
+        $roomId = (int) ($this->request->getGet('room_id') ?? 0);
+
+        $rows = $this->bookings->search($userId, $q, $status, $roomId, 5000, 0);
+
+        $html = view('bookings/pdf_export', [
+            'rows'        => $rows,
+            'institution' => $this->institution,
+            'generatedAt' => date('d/m/Y H:i'),
+        ]);
+
+        $options = new \Dompdf\Options();
+        $options->setChroot(ROOTPATH);
+        $options->setIsRemoteEnabled(false);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+        $dompdf->stream('reservas_' . date('Y-m-d') . '.pdf', ['Attachment' => true]);
+        exit;
     }
 
     // ── New booking ─────────────────────────────────────────────────
@@ -401,7 +527,7 @@ class BookingsController extends BaseController
                         'booking_id'  => $bookingId,
                         'resource_id' => $eqId,
                         'quantity'    => $qty,
-                        'status'      => 'pending',
+                        'status'      => 'approved', // room resources don't need technician approval
                         'created_at'  => date('Y-m-d H:i:s'),
                         'updated_at'  => date('Y-m-d H:i:s'),
                     ]);
@@ -418,9 +544,9 @@ class BookingsController extends BaseController
             foreach ($resourceRequests as $req) {
                 $reqName     = trim($req['name']     ?? '');
                 $reqCategory = trim($req['category'] ?? '');
-                $reqQty      = max(1, (int) ($req['quantity'] ?? 1));
+                $reqQty      = (int) ($req['quantity'] ?? 0);
 
-                if ($reqQty === 0 || (empty($reqName) && empty($reqCategory))) {
+                if ($reqQty <= 0 || (empty($reqName) && empty($reqCategory))) {
                     continue;
                 }
 

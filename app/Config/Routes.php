@@ -45,6 +45,9 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
     $routes->post('reservas',                           'BookingsController::store');
     $routes->get( 'reservas/disponibilidade',           'BookingsController::availability');
     $routes->get( 'reservas/salas-disponiveis',         'BookingsController::availableRooms');
+    $routes->get( 'reservas/data',                      'BookingsController::data');
+    $routes->get( 'reservas/exportar-xlsx',             'BookingsController::exportXlsx');
+    $routes->get( 'reservas/exportar-pdf',              'BookingsController::exportPdf');
     $routes->get( 'reservas/(:num)',                    'BookingsController::show/$1');
     $routes->post('reservas/(:num)/cancelar',           'BookingsController::cancel/$1');
 
@@ -76,17 +79,27 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
         // Buildings
         $routes->get( 'predios',                       'Admin\BuildingsController::index');
+        $routes->get( 'predios/data',                  'Admin\BuildingsController::data');
+        $routes->get( 'predios/exportar-xlsx',         'Admin\BuildingsController::exportXlsx');
+        $routes->get( 'predios/exportar-pdf',          'Admin\BuildingsController::exportPdf');
         $routes->post('predios',                       'Admin\BuildingsController::store');
         $routes->post('predios/(:num)/update',         'Admin\BuildingsController::update/$1');
         $routes->post('predios/(:num)/delete',         'Admin\BuildingsController::delete/$1');
 
         // Rooms / Ambientes
         $routes->get( 'ambientes',                                               'Admin\RoomsController::index');
+        $routes->get( 'ambientes/data',                                          'Admin\RoomsController::data');
+        $routes->get( 'ambientes/exportar-xlsx',                                 'Admin\RoomsController::exportXlsx');
+        $routes->get( 'ambientes/exportar-pdf',                                  'Admin\RoomsController::exportPdf');
         $routes->post('ambientes',                                               'Admin\RoomsController::store');
         $routes->post('ambientes/(:num)/update',                                 'Admin\RoomsController::update/$1');
         $routes->post('ambientes/(:num)/delete',                                 'Admin\RoomsController::delete/$1');
         $routes->post('ambientes/(:num)/manutencao',                             'Admin\RoomsController::setMaintenance/$1');
         // Room resources — Sprint R2: now handled by RoomResourceController
+        $routes->get( 'ambientes/(:num)/recursos/disponivel',                     'Admin\RoomResourceController::available/$1');
+        $routes->get( 'ambientes/(:num)/recursos/data',                           'Admin\RoomResourceController::roomData/$1');
+        $routes->get( 'ambientes/(:num)/recursos/exportar-xlsx',                  'Admin\RoomResourceController::exportXlsx/$1');
+        $routes->get( 'ambientes/(:num)/recursos/exportar-pdf',                   'Admin\RoomResourceController::exportPdf/$1');
         $routes->get( 'ambientes/(:num)/recursos',                                'Admin\RoomResourceController::index/$1');
         $routes->post('ambientes/(:num)/recursos',                                'Admin\RoomResourceController::store/$1');
         $routes->post('ambientes/(:num)/recursos/(:num)/delete',                  'Admin\RoomResourceController::destroy/$1/$2');
@@ -100,6 +113,9 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
         $routes->post('recursos',                            'Admin\ResourceController::store');
         $routes->get( 'recursos/template-xlsx',              'Admin\ResourceController::templateXlsx');
         $routes->post('recursos/importar',                   'Admin\ResourceController::importFile');
+        $routes->get( 'recursos/data',                       'Admin\ResourceController::data');
+        $routes->get( 'recursos/exportar-xlsx',              'Admin\ResourceController::exportXlsx');
+        $routes->get( 'recursos/exportar-pdf',               'Admin\ResourceController::exportPdf');
         $routes->post('recursos/(:num)/update',              'Admin\ResourceController::update/$1');
         $routes->post('recursos/(:num)/delete',              'Admin\ResourceController::destroy/$1');
         $routes->get( 'recursos/(:num)/historico',           'Admin\ResourceController::history/$1');
@@ -115,6 +131,9 @@ $routes->group('', ['filter' => 'auth'], static function ($routes) {
 
         // Users
         $routes->get( 'usuarios',                                  'Admin\UsersController::index');
+        $routes->get( 'usuarios/data',                             'Admin\UsersController::data');
+        $routes->get( 'usuarios/exportar-xlsx',                    'Admin\UsersController::exportXlsx');
+        $routes->get( 'usuarios/exportar-pdf',                     'Admin\UsersController::exportPdf');
         $routes->post('usuarios/convidar',                         'Admin\UsersController::invite');
         $routes->post('usuarios/convites/(:num)/revogar',          'Admin\UsersController::revokeInvite/$1');
         $routes->post('usuarios/(:num)/role',                      'Admin\UsersController::updateRole/$1');

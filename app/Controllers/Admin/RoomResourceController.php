@@ -46,14 +46,190 @@ class RoomResourceController extends BaseController
                 ->setJSON(['error' => 'Ambiente não encontrado.']);
         }
 
-        $items          = $this->resources->allocatedToRoom($roomId);
-        $availableStock = $this->resources->inGeneralStock($institutionId);
+        $items = $this->resources->allocatedToRoom($roomId);
 
         return $this->response->setJSON([
             'room_name'       => $room['name'],
             'items'           => $items,
-            'available_stock' => $availableStock,
+            'available_stock' => [], // loaded lazily via /disponivel
         ]);
+    }
+
+    /**
+     * GET /admin/ambientes/:id/recursos/disponivel
+     *
+     * Paginated search over resources in general stock (not allocated to any room).
+     * Used by the lazy searchable combobox in the resources modal.
+     *
+     * Query params: q (search), page (1-based)
+     */
+    public function available(int $roomId): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $room          = $this->rooms->where('institution_id', $institutionId)->find($roomId);
+
+        if (!$room) {
+            return $this->response->setStatusCode(404)
+                ->setJSON(['error' => 'Ambiente não encontrado.']);
+        }
+
+        $q      = trim($this->request->getGet('q')    ?? '');
+        $page   = max(1, (int) ($this->request->getGet('page') ?? 1));
+        $limit  = 10;
+        $offset = ($page - 1) * $limit;
+
+        $rows  = $this->resources->inGeneralStockSearch($institutionId, $q, $limit, $offset);
+        $total = $this->resources->inGeneralStockCount($institutionId, $q);
+
+        foreach ($rows as &$r) {
+            $r['id']             = (int) $r['id'];
+            $r['quantity_total'] = (int) $r['quantity_total'];
+        }
+        unset($r);
+
+        return $this->response->setJSON([
+            'data'  => $rows,
+            'total' => $total,
+            'pages' => (int) ceil($total / $limit),
+            'page'  => $page,
+        ]);
+    }
+
+    /**
+     * GET /admin/ambientes/:id/recursos/data
+     *
+     * Paginated + searchable list of resources allocated to the room.
+     * Query params: q, page, limit (10|25|50)
+     */
+    public function roomData(int $roomId): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $room          = $this->rooms->where('institution_id', $institutionId)->find($roomId);
+
+        if (!$room) {
+            return $this->response->setStatusCode(404)
+                ->setJSON(['error' => 'Ambiente não encontrado.']);
+        }
+
+        $q      = trim($this->request->getGet('q')     ?? '');
+        $page   = max(1, (int) ($this->request->getGet('page')  ?? 1));
+        $limit  = in_array((int) ($this->request->getGet('limit') ?? 10), [10, 25, 50])
+                    ? (int) $this->request->getGet('limit') : 10;
+        $offset = ($page - 1) * $limit;
+
+        $rows  = $this->resources->allocatedToRoomSearch($roomId, $q, $limit, $offset);
+        $total = $this->resources->allocatedToRoomCount($roomId, $q);
+
+        foreach ($rows as &$r) {
+            $r['id']                 = (int) $r['id'];
+            $r['room_resource_id']   = (int) $r['room_resource_id'];
+            $r['allocated_quantity'] = (int) $r['allocated_quantity'];
+        }
+        unset($r);
+
+        return $this->response->setJSON([
+            'room_name' => $room['name'],
+            'data'      => $rows,
+            'total'     => $total,
+            'page'      => $page,
+            'pages'     => (int) ceil($total / $limit),
+            'limit'     => $limit,
+        ]);
+    }
+
+    /**
+     * GET /admin/ambientes/:id/recursos/exportar-xlsx
+     */
+    public function exportXlsx(int $roomId): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $room          = $this->rooms->where('institution_id', $institutionId)->find($roomId);
+
+        if (!$room) {
+            return $this->response->setStatusCode(404)->setJSON(['error' => 'Ambiente não encontrado.']);
+        }
+
+        $q    = trim($this->request->getGet('q') ?? '');
+        $rows = $this->resources->allocatedToRoomSearch($roomId, $q, 5000, 0);
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet       = $spreadsheet->getActiveSheet()->setTitle('Recursos Alocados');
+
+        $sheet->fromArray(['Recurso', 'Código/Patrimônio', 'Qtd. Alocada', 'Alocado por', 'Data de Alocação'], null, 'A1');
+        $sheet->getStyle('A1:E1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                       'startColor' => ['rgb' => '1E40AF']],
+        ]);
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $allocatedAt = $r['allocated_at']
+                ? date('d/m/Y H:i', strtotime($r['allocated_at']))
+                : '';
+            $sheet->fromArray([
+                $r['name'],
+                $r['code'] ?? '',
+                (int) $r['allocated_quantity'],
+                $r['allocated_by_name'] ?? '',
+                $allocatedAt,
+            ], null, 'A' . $row);
+            if ($row % 2 === 0) {
+                $sheet->getStyle('A' . $row . ':E' . $row)
+                    ->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('F8FAFC');
+            }
+            $row++;
+        }
+
+        foreach (range('A', 'E') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        ob_start();
+        $writer->save('php://output');
+        $content = ob_get_clean();
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', 'attachment; filename="recursos_' . $roomId . '_' . date('Y-m-d') . '.xlsx"')
+            ->setHeader('Cache-Control', 'max-age=0')
+            ->setBody($content);
+    }
+
+    /**
+     * GET /admin/ambientes/:id/recursos/exportar-pdf
+     */
+    public function exportPdf(int $roomId): void
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $room          = $this->rooms->where('institution_id', $institutionId)->find($roomId);
+
+        if (!$room) {
+            echo 'Ambiente não encontrado.'; exit;
+        }
+
+        $q    = trim($this->request->getGet('q') ?? '');
+        $rows = $this->resources->allocatedToRoomSearch($roomId, $q, 5000, 0);
+
+        $html = view('admin/rooms/room_resources_pdf', [
+            'rows'        => $rows,
+            'room'        => $room,
+            'institution' => $this->institution,
+            'generatedAt' => date('d/m/Y H:i'),
+        ]);
+
+        $options = new \Dompdf\Options();
+        $options->setChroot(ROOTPATH);
+        $options->setIsRemoteEnabled(false);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+        $dompdf->stream('recursos_' . $roomId . '_' . date('Y-m-d') . '.pdf', ['Attachment' => true]);
+        exit;
     }
 
     /**

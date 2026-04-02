@@ -142,12 +142,12 @@ $statusLabel = match($booking['status']) {
                 && ($bookingEnded ?? false)
                 && ($isOwner || $isStaff);
             ?>
-            <tr>
-              <td class="font-medium"><?= esc($e['resource_name']) ?></td>
+            <tr <?= $e['status'] === 'rejected' ? 'class="bg-red-50"' : '' ?>>
+              <td class="font-medium <?= $e['status'] === 'rejected' ? 'text-red-700' : '' ?>"><?= esc($e['resource_name']) ?></td>
               <?php if (!$isRequester): ?>
-              <td><?= esc($e['resource_code'] ?? '—') ?></td>
+              <td class="<?= $e['status'] === 'rejected' ? 'text-red-400' : '' ?>"><?= esc($e['resource_code'] ?? '—') ?></td>
               <?php endif; ?>
-              <td class="text-center"><?= (int) $e['quantity'] ?></td>
+              <td class="text-center <?= $e['status'] === 'rejected' ? 'text-red-400' : '' ?>"><?= (int) $e['quantity'] ?></td>
               <td>
                 <span class="<?= $badgeCls ?> text-xs"><?= $statusLabel ?></span>
                 <?php if ($e['status'] === 'rejected' && !empty($e['rejection_note'])): ?>

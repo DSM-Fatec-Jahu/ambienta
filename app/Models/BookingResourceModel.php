@@ -83,6 +83,8 @@ class BookingResourceModel extends Model
             ->where('bk.institution_id', $institutionId)
             ->where('bk.deleted_at IS NULL')
             ->where('br.status', self::STATUS_PENDING)
+            // Exclude resources permanently assigned to the booking's room — they don't need approval
+            ->where('br.resource_id NOT IN (SELECT rr.resource_id FROM room_resources rr WHERE rr.room_id = bk.room_id)')
             ->orderBy('br.created_at', 'ASC')
             ->get()->getResultArray();
     }

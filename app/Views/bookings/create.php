@@ -527,7 +527,6 @@
         </div>
 
         <!-- Bloco 2: Recursos adicionais do estoque geral (RN-R14) -->
-        <?php if ($isRequester): ?>
         <div class="card" x-show="availableResources && availableResources.length > 0" x-cloak>
           <div class="card-header">
             <h2 class="text-sm font-semibold text-slate-900">Recursos adicionais <span class="text-slate-400 font-normal">(opcional)</span></h2>
@@ -541,6 +540,10 @@
                     <span class="text-sm font-medium text-slate-800" x-text="res.name"></span>
                     <span x-show="res.category" class="text-xs text-slate-400 ml-1"
                           x-text="'(' + res.category + ')'"></span>
+                    <?php if (!$isRequester): ?>
+                    <span x-show="res.code" class="text-xs text-slate-400 font-mono ml-1"
+                          x-text="'#' + res.code"></span>
+                    <?php endif; ?>
                     <span class="text-xs text-slate-400 ml-2"
                           x-text="'até ' + res.available_qty + ' disponível(is)'"></span>
                   </div>
@@ -557,7 +560,6 @@
             </div>
           </div>
         </div>
-        <?php endif; ?>
 
       </div><!-- /left col -->
 

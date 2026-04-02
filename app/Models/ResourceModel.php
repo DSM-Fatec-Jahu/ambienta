@@ -71,6 +71,81 @@ class ResourceModel extends Model
     }
 
     /**
+     * Paginated search over general stock resources (for lazy dropdown).
+     */
+    public function inGeneralStockSearch(int $institutionId, string $q, int $limit, int $offset): array
+    {
+        return $this->_inGeneralStockQuery($institutionId, $q)
+            ->limit($limit, $offset)
+            ->get()->getResultArray();
+    }
+
+    public function inGeneralStockCount(int $institutionId, string $q): int
+    {
+        return (int) $this->_inGeneralStockQuery($institutionId, $q)->countAllResults();
+    }
+
+    private function _inGeneralStockQuery(int $institutionId, string $q): \CodeIgniter\Database\BaseBuilder
+    {
+        $qb = $this->db->table('resources r')
+            ->select('r.id, r.name, r.code, r.quantity_total')
+            ->where('r.institution_id', $institutionId)
+            ->where('r.is_active', 1)
+            ->where('r.deleted_at IS NULL')
+            ->whereNotIn('r.id', function ($builder) {
+                $builder->select('resource_id')->from('room_resources');
+            })
+            ->orderBy('r.name', 'ASC');
+
+        if ($q !== '') {
+            $qb->groupStart()
+                ->like('r.name', $q)
+                ->orLike('r.code', $q)
+            ->groupEnd();
+        }
+
+        return $qb;
+    }
+
+    /**
+     * Paginated search over resources allocated to a room.
+     */
+    public function allocatedToRoomSearch(int $roomId, string $q, int $limit, int $offset): array
+    {
+        return $this->_allocatedToRoomQuery($roomId, $q)
+            ->limit($limit, $offset)
+            ->get()->getResultArray();
+    }
+
+    public function allocatedToRoomCount(int $roomId, string $q): int
+    {
+        return (int) $this->_allocatedToRoomQuery($roomId, $q)->countAllResults();
+    }
+
+    private function _allocatedToRoomQuery(int $roomId, string $q): \CodeIgniter\Database\BaseBuilder
+    {
+        $qb = $this->db->table('room_resources rr')
+            ->select('r.id, r.name, r.code, r.quantity_total,
+                      rr.quantity AS allocated_quantity, rr.id AS room_resource_id,
+                      rr.allocated_by_id, rr.allocated_at,
+                      u.name AS allocated_by_name')
+            ->join('resources r', 'r.id = rr.resource_id')
+            ->join('users u',     'u.id = rr.allocated_by_id', 'left')
+            ->where('rr.room_id', $roomId)
+            ->where('r.deleted_at IS NULL')
+            ->orderBy('r.name', 'ASC');
+
+        if ($q !== '') {
+            $qb->groupStart()
+                ->like('r.name', $q)
+                ->orLike('r.code', $q)
+            ->groupEnd();
+        }
+
+        return $qb;
+    }
+
+    /**
      * Returns resources currently allocated to a specific room.
      */
     public function allocatedToRoom(int $roomId): array
@@ -275,6 +350,69 @@ class ResourceModel extends Model
             ->where('deleted_at IS NULL')
             ->orderBy('term', 'ASC')
             ->get()->getResultArray();
+    }
+
+    // ── Admin search / pagination (lazy table) ───────────────────────────────
+
+    public function getDistinctCategories(int $institutionId): array
+    {
+        return $this->db->table('resources')
+            ->distinct()
+            ->select('category')
+            ->where('institution_id', $institutionId)
+            ->where('deleted_at IS NULL')
+            ->where('category IS NOT NULL')
+            ->where('category !=', '')
+            ->orderBy('category', 'ASC')
+            ->get()->getResultArray();
+    }
+
+    public function search(int $institutionId, string $q, string $categoria, int $localId, int $status, int $limit, int $offset): array
+    {
+        return $this->_searchQuery($institutionId, $q, $categoria, $localId, $status)
+            ->orderBy('r.name', 'ASC')
+            ->limit($limit, $offset)
+            ->get()->getResultArray();
+    }
+
+    public function searchCount(int $institutionId, string $q, string $categoria, int $localId, int $status): int
+    {
+        return (int) $this->_searchQuery($institutionId, $q, $categoria, $localId, $status)
+            ->countAllResults();
+    }
+
+    private function _searchQuery(int $institutionId, string $q, string $categoria, int $localId, int $status): \CodeIgniter\Database\BaseBuilder
+    {
+        $qb = $this->db->table('resources r')
+            ->select('r.*, rm.name AS current_room_name, rm.code AS current_room_abbr, rr.quantity AS allocated_quantity')
+            ->join('room_resources rr', 'rr.resource_id = r.id', 'left')
+            ->join('rooms rm',          'rm.id = rr.room_id',     'left')
+            ->where('r.institution_id', $institutionId)
+            ->where('r.deleted_at IS NULL');
+
+        if ($q !== '') {
+            $qb->groupStart()
+                ->like('r.name', $q)
+                ->orLike('r.code', $q)
+            ->groupEnd();
+        }
+
+        if ($categoria !== '') {
+            $qb->where('r.category', $categoria);
+        }
+
+        if ($localId === -1) {
+            $qb->whereNotIn('r.id', function ($b) {
+                $b->select('resource_id')->from('room_resources');
+            });
+        } elseif ($localId > 0) {
+            $qb->where('rr.room_id', $localId);
+        }
+
+        if ($status === 1)     { $qb->where('r.is_active', 1); }
+        elseif ($status === 2) { $qb->where('r.is_active', 0); }
+
+        return $qb;
     }
 
     /**

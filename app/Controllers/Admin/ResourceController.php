@@ -37,14 +37,133 @@ class ResourceController extends BaseController
     {
         $institutionId = $this->institution['id'] ?? 0;
 
-        $items = $this->resources->withCurrentLocation($institutionId);
-        $rooms = $this->rooms->activeForInstitution($institutionId);
+        $categories = $this->resources->getDistinctCategories($institutionId);
+        $rooms      = $this->rooms->activeForInstitution($institutionId);
 
         return view('admin/resources/index', $this->viewData([
-            'pageTitle' => 'Recursos',
-            'items'     => $items,
-            'rooms'     => $rooms,
+            'pageTitle'  => 'Recursos',
+            'categories' => $categories,
+            'rooms'      => $rooms,
         ]));
+    }
+
+    public function data(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $page      = max(1, (int) ($this->request->getGet('page')      ?? 1));
+        $q         = trim($this->request->getGet('q')                  ?? '');
+        $categoria = trim($this->request->getGet('categoria')          ?? '');
+        $localId   = (int) ($this->request->getGet('local')            ?? 0);
+        $status    = (int) ($this->request->getGet('status')           ?? 0);
+        $limit     = in_array((int) ($this->request->getGet('limit')   ?? 10), [10, 25, 50, 100])
+                        ? (int) $this->request->getGet('limit') : 10;
+        $offset    = ($page - 1) * $limit;
+
+        $rows  = $this->resources->search($institutionId, $q, $categoria, $localId, $status, $limit, $offset);
+        $total = $this->resources->searchCount($institutionId, $q, $categoria, $localId, $status);
+
+        foreach ($rows as &$r) {
+            $r['id']               = (int)  $r['id'];
+            $r['institution_id']   = (int)  $r['institution_id'];
+            $r['quantity_total']   = (int)  $r['quantity_total'];
+            $r['is_active']        = (bool) $r['is_active'];
+            $r['allocated_quantity'] = $r['allocated_quantity'] !== null ? (int) $r['allocated_quantity'] : null;
+        }
+        unset($r);
+
+        return $this->response->setJSON([
+            'data'  => $rows,
+            'total' => $total,
+            'page'  => $page,
+            'pages' => (int) ceil($total / $limit),
+            'limit' => $limit,
+        ]);
+    }
+
+    public function exportXlsx(): \CodeIgniter\HTTP\ResponseInterface
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $q         = trim($this->request->getGet('q')         ?? '');
+        $categoria = trim($this->request->getGet('categoria') ?? '');
+        $localId   = (int) ($this->request->getGet('local')   ?? 0);
+        $status    = (int) ($this->request->getGet('status')  ?? 0);
+
+        $rows = $this->resources->search($institutionId, $q, $categoria, $localId, $status, 5000, 0);
+
+        $spreadsheet = new \PhpOffice\PhpSpreadsheet\Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Recursos');
+
+        $sheet->fromArray(['Nome', 'Categoria', 'Patrimônio', 'Quantidade', 'Localização', 'Status'], null, 'A1');
+        $sheet->getStyle('A1:F1')->applyFromArray([
+            'font' => ['bold' => true, 'color' => ['rgb' => 'FFFFFF']],
+            'fill' => ['fillType' => \PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID,
+                       'startColor' => ['rgb' => '1E40AF']],
+        ]);
+
+        $row = 2;
+        foreach ($rows as $r) {
+            $localizacao = !empty($r['current_room_name'])
+                ? $r['current_room_name'] . (!empty($r['current_room_abbr']) ? ' (' . $r['current_room_abbr'] . ')' : '')
+                : 'Estoque geral';
+
+            $sheet->fromArray([
+                $r['name'],
+                $r['category'] ?? '',
+                $r['code'] ?? '',
+                (int) $r['quantity_total'],
+                $localizacao,
+                $r['is_active'] ? 'Ativo' : 'Inativo',
+            ], null, 'A' . $row);
+
+            if ($row % 2 === 0) {
+                $sheet->getStyle('A'.$row.':F'.$row)
+                    ->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+                    ->getStartColor()->setRGB('F8FAFC');
+            }
+            $row++;
+        }
+
+        foreach (range('A', 'F') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        $writer = new \PhpOffice\PhpSpreadsheet\Writer\Xlsx($spreadsheet);
+        ob_start(); $writer->save('php://output'); $content = ob_get_clean();
+
+        return $this->response
+            ->setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet')
+            ->setHeader('Content-Disposition', 'attachment; filename="recursos_'.date('Y-m-d').'.xlsx"')
+            ->setHeader('Cache-Control', 'max-age=0')
+            ->setBody($content);
+    }
+
+    public function exportPdf(): void
+    {
+        $institutionId = $this->institution['id'] ?? 0;
+        $q         = trim($this->request->getGet('q')         ?? '');
+        $categoria = trim($this->request->getGet('categoria') ?? '');
+        $localId   = (int) ($this->request->getGet('local')   ?? 0);
+        $status    = (int) ($this->request->getGet('status')  ?? 0);
+
+        $rows = $this->resources->search($institutionId, $q, $categoria, $localId, $status, 5000, 0);
+
+        $html = view('admin/resources/pdf_export', [
+            'rows'        => $rows,
+            'institution' => $this->institution,
+            'generatedAt' => date('d/m/Y H:i'),
+        ]);
+
+        $options = new \Dompdf\Options();
+        $options->setChroot(ROOTPATH);
+        $options->setIsRemoteEnabled(false);
+
+        $dompdf = new \Dompdf\Dompdf($options);
+        $dompdf->loadHtml($html, 'UTF-8');
+        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->render();
+        $dompdf->stream('recursos_'.date('Y-m-d').'.pdf', ['Attachment' => true]);
+        exit;
     }
 
     // ── Create ───────────────────────────────────────────────────────────────
@@ -54,23 +173,32 @@ class ResourceController extends BaseController
         $institutionId = $this->institution['id'] ?? 0;
         $user          = $this->currentUser();
 
-        $rules = [
-            'name'           => 'required|max_length[150]',
-            'quantity_total' => 'required|integer|greater_than[0]',
+        $code = $this->request->getPost('code') ?: null;
+
+        $rules    = ['name' => 'required|max_length[150]'];
+        $messages = [
+            'name' => [
+                'required'   => 'O campo Nome é obrigatório.',
+                'max_length' => 'O campo Nome deve ter no máximo 150 caracteres.',
+            ],
         ];
 
-        if (!$this->validate($rules)) {
+        // RN-R01: patrimônio preenchido → quantidade travada em 1; sem patrimônio → campo obrigatório
+        if ($code === null) {
+            $rules['quantity_total'] = 'required|integer|greater_than[0]';
+            $messages['quantity_total'] = [
+                'required'     => 'O campo Quantidade total é obrigatório.',
+                'integer'      => 'O campo Quantidade total deve ser um número inteiro.',
+                'greater_than' => 'O campo Quantidade total deve ser maior que 0.',
+            ];
+        }
+
+        if (!$this->validate($rules, $messages)) {
             return redirect()->back()->withInput()
                 ->with('error', implode(' ', $this->validator->getErrors()));
         }
 
-        $code = $this->request->getPost('code') ?: null;
-        $qty  = (int) $this->request->getPost('quantity_total');
-
-        // RN-R01: code present → quantity must be 1
-        if ($code !== null) {
-            $qty = 1;
-        }
+        $qty = $code !== null ? 1 : (int) $this->request->getPost('quantity_total');
 
         $id = $this->resources->insert([
             'institution_id' => $institutionId,
@@ -104,23 +232,32 @@ class ResourceController extends BaseController
             return redirect()->to(base_url('admin/recursos'))->with('error', 'Recurso não encontrado.');
         }
 
-        $rules = [
-            'name'           => 'required|max_length[150]',
-            'quantity_total' => 'required|integer|greater_than[0]',
+        $code = $this->request->getPost('code') ?: null;
+
+        $rules    = ['name' => 'required|max_length[150]'];
+        $messages = [
+            'name' => [
+                'required'   => 'O campo Nome é obrigatório.',
+                'max_length' => 'O campo Nome deve ter no máximo 150 caracteres.',
+            ],
         ];
 
-        if (!$this->validate($rules)) {
+        // RN-R01: patrimônio preenchido → quantidade travada em 1; sem patrimônio → campo obrigatório
+        if ($code === null) {
+            $rules['quantity_total'] = 'required|integer|greater_than[0]';
+            $messages['quantity_total'] = [
+                'required'     => 'O campo Quantidade total é obrigatório.',
+                'integer'      => 'O campo Quantidade total deve ser um número inteiro.',
+                'greater_than' => 'O campo Quantidade total deve ser maior que 0.',
+            ];
+        }
+
+        if (!$this->validate($rules, $messages)) {
             return redirect()->back()->withInput()
                 ->with('error', implode(' ', $this->validator->getErrors()));
         }
 
-        $code = $this->request->getPost('code') ?: null;
-        $qty  = (int) $this->request->getPost('quantity_total');
-
-        // RN-R01: code present → quantity must be 1
-        if ($code !== null) {
-            $qty = 1;
-        }
+        $qty = $code !== null ? 1 : (int) $this->request->getPost('quantity_total');
 
         $old = $item;
         $this->resources->update($id, [

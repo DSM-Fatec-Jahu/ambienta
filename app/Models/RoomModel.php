@@ -134,4 +134,69 @@ class RoomModel extends Model
 
         return $q->orderBy('b.name, r.name')->get()->getResultArray();
     }
+
+    /**
+     * Paginated, filterable room list for the admin data endpoint.
+     *
+     * @param int    $status  0=all, 1=active, 2=inactive, 3=maintenance
+     */
+    public function search(
+        int    $institutionId,
+        string $q,
+        int    $buildingId,
+        int    $status,
+        int    $limit,
+        int    $offset
+    ): array {
+        return $this->_searchQuery($institutionId, $q, $buildingId, $status)
+            ->orderBy('b.name, r.name')
+            ->limit($limit, $offset)
+            ->get()->getResultArray();
+    }
+
+    public function searchCount(
+        int    $institutionId,
+        string $q,
+        int    $buildingId,
+        int    $status
+    ): int {
+        return (int) $this->_searchQuery($institutionId, $q, $buildingId, $status)
+            ->countAllResults();
+    }
+
+    /** Shared query builder for search() and searchCount(). */
+    private function _searchQuery(
+        int    $institutionId,
+        string $q,
+        int    $buildingId,
+        int    $status
+    ): \CodeIgniter\Database\BaseBuilder {
+        $qb = $this->db->table('rooms r')
+            ->select('r.*, b.name AS building_name')
+            ->join('buildings b', 'b.id = r.building_id', 'left')
+            ->where('r.institution_id', $institutionId)
+            ->where('r.deleted_at IS NULL');
+
+        if ($q !== '') {
+            $qb->groupStart()
+                ->like('r.name', $q)
+                ->orLike('r.code', $q)
+                ->orLike('b.name', $q)
+            ->groupEnd();
+        }
+
+        if ($buildingId > 0) {
+            $qb->where('r.building_id', $buildingId);
+        }
+
+        if ($status === 1) {
+            $qb->where('r.is_active', 1)->where('r.maintenance_mode', 0);
+        } elseif ($status === 2) {
+            $qb->where('r.is_active', 0);
+        } elseif ($status === 3) {
+            $qb->where('r.maintenance_mode', 1);
+        }
+
+        return $qb;
+    }
 }
